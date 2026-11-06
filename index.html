@@ -25,8 +25,8 @@
   <dialog id="setup-dialog" aria-labelledby="setup-title">
     <form method="dialog"><button class="dialog-close" aria-label="Close setup">✕</button></form>
     <h2 id="setup-title">Console setup</h2><p>Import your own files. They stay on this device.</p>
-    <button id="choose-keys" disabled>Import keys</button><button id="choose-firmware" disabled>Import firmware ZIP</button>
-    <input id="firmware" type="file" accept=".zip" hidden>
+    <button id="choose-keys" disabled>Import keys</button><button id="choose-firmware" disabled>Import firmware</button><button id="choose-firmware-folder" disabled hidden>Choose firmware folder</button>
+    <input id="firmware" type="file" multiple hidden><input id="firmware-folder" type="file" webkitdirectory multiple hidden>
     <p id="setup-message" role="status">Add prod.keys first, then firmware. Games use the same setup.</p>
     <p id="key-recovery-details" class="muted" hidden></p>
     <button id="import-compatible-keys" aria-describedby="setup-message key-recovery-details" hidden disabled>Import compatible entries</button>

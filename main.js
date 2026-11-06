@@ -29,7 +29,7 @@ for (const id of ['setup', 'mobile-setup']) {
   const control = document.getElementById(id);
   control.disabled = false; control.onclick = () => setupDialog.showModal();
 }
-for (const id of ['choose-keys', 'choose-firmware', 'classic-mode']) document.getElementById(id).disabled = true;
+for (const id of ['choose-keys', 'choose-firmware', 'choose-firmware-folder', 'classic-mode']) document.getElementById(id).disabled = true;
 const NativeMemory = WebAssembly.Memory;
 const CapturedMemory = function (descriptor) {
   const memory = new NativeMemory(descriptor);
@@ -121,7 +121,7 @@ try {
     setupWarnings.push(...restoredSetup.failed.map(item => item.message));
   } catch (error) { setupWarnings.push(error.message); }
   try { const version = await restoreFirmware(api, tell); if (version) document.getElementById('setup-message').textContent = `Firmware ${version} restored from this device.`; }
-  catch (error) { setupWarnings.push('Saved firmware could not be restored. Open Setup and import the firmware ZIP again.'); }
+  catch (error) { setupWarnings.push('Saved firmware could not be restored. Open Setup and import the firmware again.'); }
   const restored = await restoreLibrary(api, count => tell(`Restoring library · ${count} games`));
   // Restored metadata is visible before OPFS streams are registered. Refresh now
   // so the first tap uses Play rather than a stale "review this file" action.
@@ -138,7 +138,7 @@ try {
   const recoveryIssues = document.getElementById('key-recovery-issues');
   const recoverySummary = document.getElementById('key-recovery-summary');
   const recoveryLines = document.getElementById('key-recovery-lines');
-  const importControls = [button, keyButton, firmwareButton];
+  const importControls = [button, keyButton, firmwareButton, document.getElementById('choose-firmware-folder')];
   let importing, pendingKeyFile = null, recoveryGeneration = 0;
   function clearKeyRecovery() {
     pendingKeyFile = null; recoveryGeneration++;
@@ -252,20 +252,26 @@ try {
     finally { retrySave.disabled = false; }
   };
   keyButton.onclick = () => { clearKeyRecovery(); keys.click(); };
+  // Firmware can be a ZIP from any tool, loose .nca files, or a folder (where the browser can pick one).
+  const firmwareFolder = document.getElementById('firmware-folder'), folderButton = document.getElementById('choose-firmware-folder');
+  folderButton.hidden = !('webkitdirectory' in firmwareFolder) || /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   firmwareButton.onclick = () => { clearKeyRecovery(); firmware.click(); };
-  firmware.onchange = async () => {
-    const file = firmware.files[0]; clearKeyRecovery(); if (!file) return;
-    const release = beginImport(firmwareButton, {});
-    if (!release) { firmware.value = ''; return; }
+  folderButton.onclick = () => { clearKeyRecovery(); firmwareFolder.click(); };
+  const importFirmware = async (input, control) => {
+    const files = [...input.files]; clearKeyRecovery(); if (!files.length) return;
+    const release = beginImport(control, {});
+    if (!release) { input.value = ''; return; }
     document.getElementById('setup-message').textContent = 'Importing firmware…';
     try {
-      const version = await saveFirmware(file, api, { onProgress: (done, total) => {
+      const version = await saveFirmware(files, api, { onProgress: (done, total) => {
         document.getElementById('setup-message').textContent = done === total ? 'Verifying and installing firmware…' : `Copying firmware · ${Math.floor(done / total * 100)}%`;
       } });
       document.getElementById('setup-message').textContent = `Firmware ${version} installed and saved on this device.`;
     } catch (error) { document.getElementById('setup-message').textContent = error.message; }
-    finally { firmware.value = ''; release(); }
+    finally { input.value = ''; release(); }
   };
+  firmware.onchange = () => importFirmware(firmware, firmwareButton);
+  firmwareFolder.onchange = () => importFirmware(firmwareFolder, folderButton);
   async function importKeySelection(file, compatibleOnly, release) {
     const generation = recoveryGeneration;
     document.getElementById('setup-message').textContent = compatibleOnly ? 'Importing compatible key entries…' : 'Importing keys…';
@@ -366,7 +372,7 @@ try {
   await jitRestore;
   await api.MarkRuntimeReady();
   button.disabled = false;
-  for (const id of ['choose-keys', 'choose-firmware', 'classic-mode']) document.getElementById(id).disabled = false;
+  for (const id of ['choose-keys', 'choose-firmware', 'choose-firmware-folder', 'classic-mode']) document.getElementById(id).disabled = false;
   tell(setupWarnings.length ? 'Setup needs attention. Open Setup for details.' : `Ready · ${restored.restored} saved files${restored.skipped ? ` · ${restored.skipped} need attention` : ''}`);
 } catch (e) {
   const failure = e.message || String(e);

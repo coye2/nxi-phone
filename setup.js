@@ -1,3 +1,4 @@
+import { collectFirmware, writeFirmwareZip } from './firmware-package.js';
 // User-supplied setup files stay in this origin's private storage.
 import { canonicalKeyFileName, MAX_KEY_FILE_BYTES, prepareKeyFile } from './key-file.js';
 const DIR = 'nxi-setup';
@@ -150,29 +151,37 @@ async function readFirmware(dir) {
     return record;
   } catch (error) { if (error.name === 'NotFoundError') return null; throw error; }
 }
-export async function saveFirmware(file, api, { signal, onProgress = () => {} } = {}) {
-  if (!/\.zip$/i.test(file.name) || file.size < 22 || file.size > 512 * 1024 * 1024)
+// An array of picked files (ZIP from any tool, loose .nca files or a folder) is rewritten into a
+// clean package by firmware-package.js. A single File is taken as an already clean ZIP.
+export async function saveFirmware(input, api, { signal, onProgress = () => {} } = {}) {
+  const plan = Array.isArray(input) ? await collectFirmware(input) : null, file = plan ? null : input;
+  if (file && (!/\.zip$/i.test(file.name) || file.size < 22 || file.size > 512 * 1024 * 1024))
     throw new Error('Choose a firmware ZIP up to 512 MiB.');
+  const needed = plan ? plan.total : file.size;
   const estimate = await navigator.storage.estimate?.();
-  if (estimate?.quota && file.size > estimate.quota - (estimate.usage || 0)) throw new Error('Not enough device storage for this firmware package.');
+  if (estimate?.quota && needed > estimate.quota - (estimate.usage || 0)) throw new Error('Not enough device storage for this firmware package.');
   signal?.throwIfAborted();
   const dir = await directory(), root = await navigator.storage.getDirectory();
   const data = await root.getDirectoryHandle('nxi-games', { create: true });
   const previous = await readFirmware(dir);
   const id = crypto.randomUUID().replaceAll('-', '') + '.zip';
-  let writer, reader, installed = false;
+  let writer, reader, installed = false, size = 0;
   try {
     writer = await (await data.getFileHandle(id, { create: true })).createWritable();
-    reader = file.stream().getReader(); let done = 0;
-    for (;;) {
-      signal?.throwIfAborted(); const next = await reader.read(); if (next.done) break;
-      if (done + next.value.byteLength > file.size) throw new Error('Firmware file changed during copy.');
-      await writer.write(next.value); done += next.value.byteLength; onProgress(done, file.size);
+    if (plan) size = await writeFirmwareZip(plan, chunk => writer.write(chunk), { signal, onProgress });
+    else {
+      reader = file.stream().getReader(); let done = 0;
+      for (;;) {
+        signal?.throwIfAborted(); const next = await reader.read(); if (next.done) break;
+        if (done + next.value.byteLength > file.size) throw new Error('Firmware file changed during copy.');
+        await writer.write(next.value); done += next.value.byteLength; onProgress(done, file.size);
+      }
+      signal?.throwIfAborted(); if (done !== file.size) throw new Error('Firmware file changed during copy.');
+      size = done;
     }
-    signal?.throwIfAborted(); if (done !== file.size) throw new Error('Firmware file changed during copy.');
     await writer.close(); writer = null;
     const firmwareVersion = await api.InstallStoredFirmware(id); installed = true;
-    const record = { version: 1, id, size: file.size, firmwareVersion };
+    const record = { version: 1, id, size, firmwareVersion };
     const commit = await (await dir.getFileHandle(FIRMWARE, { create: true })).createWritable();
     try { await commit.write(JSON.stringify(record)); await commit.close(); }
     catch (error) { try { await commit.abort(); } catch {} throw error; }
