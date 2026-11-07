@@ -12,7 +12,7 @@ const cache = new Map();
 // Each translated block is its own WebAssembly module; WebKit (iOS) spends a lot of memory per
 // module, so keep at most this many and drop the oldest quarter when full. Dropped entries
 // come back from the host's translation cache on their next use.
-const CACHE_LIMIT = 6000;
+const CACHE_LIMIT = 50000;
 function remember(pc, e) {
   cache.set(pc, e);
   if (cache.size <= CACHE_LIMIT) return;

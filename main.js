@@ -13,7 +13,11 @@ import { configureRuntimeDelivery } from './runtime-delivery.js';
 
 const message = document.getElementById('message');
 initializeMobileShell();
-const tell = text => { message.textContent = text; reportMobileStatus(text); console.log('NXI-UI ' + text); };
+// Safari answers every on-device storage call this way in Private Browsing.
+const explain = text => /unknown transient reason/i.test(text)
+  ? 'This browser blocked on-device storage, so NXI can\'t keep games here. Private Browsing does this: open NXI in a normal tab or from your Home Screen. (' + text + ')'
+  : text;
+const tell = text => { text = explain(text); message.textContent = text; reportMobileStatus(text); console.log('NXI-UI ' + text); };
 let activeApi = null;
 const diagnostics = document.getElementById('export-diagnostics');
 diagnostics.disabled = false;
@@ -95,10 +99,17 @@ try {
     : 'Open NXI using its HTTPS address. This browser cannot start CPU threads on an insecure page.');
   sessionStorage.removeItem('nxi-launcher-isolation-reload');
   tell('Starting NX Infinity…');
+  // Starting can take a minute on a phone; show it is still working.
+  const startedAt = Date.now();
+  const startTicker = setInterval(() => {
+    if (message.textContent.startsWith('Starting NX Infinity'))
+      tell(`Starting NX Infinity… ${Math.round((Date.now() - startedAt) / 1000)} s (phones can take a minute)`);
+  }, 5000);
   const { dotnet } = await import('./_framework/dotnet.js');
   const runtimeBuilder = await configureRuntimeDelivery(dotnet);
   const dumpShaders = new URLSearchParams(location.search).has('dumpShaders');
   const runtime = await runtimeBuilder.withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
+  clearInterval(startTicker);
   const api = (await runtime.getAssemblyExports(runtime.getConfig().mainAssemblyName)).NxInfinity.BrowserLauncher;
   activeApi = api;
   let restoreWarning = null;
