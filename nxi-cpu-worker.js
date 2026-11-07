@@ -9,13 +9,24 @@ const HOT_THRESHOLD = 256;
 
 let memory, mbox, i32, view, mboxGlobal, generation = -1;
 const cache = new Map();
+// Each translated block is its own WebAssembly module; WebKit (iOS) spends a lot of memory per
+// module, so keep at most this many and drop the oldest quarter when full. Dropped entries
+// come back from the host's translation cache on their next use.
+const CACHE_LIMIT = 6000;
+function remember(pc, e) {
+  cache.set(pc, e);
+  if (cache.size <= CACHE_LIMIT) return;
+  let drop = cache.size - (CACHE_LIMIT * 3 >> 2);
+  for (const key of cache.keys()) { if (key === pc) continue; cache.delete(key); if (--drop <= 0) break; }
+  stats.evictions++;
+}
 // Perf counters, printed every 5 s while busy (NXI-CPU-STATS).
-const stats = { hot: 0, compiles: 0, compileMs: 0, translateWaitMs: 0, rpcs: 0, rpcMs: 0, blocks: 0, clears: 0, last: performance.now() };
+const stats = { evictions: 0, hot: 0, compiles: 0, compileMs: 0, translateWaitMs: 0, rpcs: 0, rpcMs: 0, blocks: 0, clears: 0, last: performance.now() };
 function report() {
   const now = performance.now();
   if (now - stats.last < 5000) return;
-  console.log(`NXI-CPU-STATS blocks=${stats.blocks} compiles=${stats.compiles} hot=${stats.hot} compileMs=${stats.compileMs | 0} translateWaitMs=${stats.translateWaitMs | 0} rpcs=${stats.rpcs} rpcMs=${stats.rpcMs | 0} clears=${stats.clears} cache=${cache.size}`);
-  Object.assign(stats, { hot: 0, compiles: 0, compileMs: 0, translateWaitMs: 0, rpcs: 0, rpcMs: 0, blocks: 0, clears: 0, last: now });
+  console.log(`NXI-CPU-STATS blocks=${stats.blocks} compiles=${stats.compiles} hot=${stats.hot} compileMs=${stats.compileMs | 0} translateWaitMs=${stats.translateWaitMs | 0} rpcs=${stats.rpcs} rpcMs=${stats.rpcMs | 0} clears=${stats.clears} evictions=${stats.evictions} cache=${cache.size}`);
+  Object.assign(stats, { evictions: 0, hot: 0, compiles: 0, compileMs: 0, translateWaitMs: 0, rpcs: 0, rpcMs: 0, blocks: 0, clears: 0, last: now });
 }
 
 function refresh() {
@@ -77,7 +88,7 @@ function lookup(pc) {
     // A translate request can bump the generation (cache cleared), so insert after it.
     // The host may answer with an existing region (MODHOT): it is already tier 1.
     e = { fn, n: i32[(mbox + MODHOT) >> 2] ? -1 : 0 };
-    cache.set(pc, e);
+    remember(pc, e);
     return fn;
   }
   if (e.n >= 0 && ++e.n >= HOT_THRESHOLD) {
@@ -85,7 +96,7 @@ function lookup(pc) {
     const fn = compile(pc, KIND_TRANSLATE_HOT);
     stats.hot++;
     e = { fn, n: -1 };
-    cache.set(pc, e);
+    remember(pc, e);
     return fn;
   }
   return e.fn;

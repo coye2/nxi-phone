@@ -14,8 +14,10 @@ async function waitForRequest() {
     const value = Atomics.load(i32, mbox >> 2);
     if (value === REQUEST) return;
     if (value === FAILED) throw new Error('Storage channel failed');
-    if (Atomics.waitAsync) await Atomics.waitAsync(i32, mbox >> 2, value, 20).value;
-    else await new Promise(r => setTimeout(r, 1));
+    // Blocking wait with a timeout: the core only flips the state (no notify), and WebKit
+    // (iOS Safari) doesn't reliably wake Atomics.waitAsync on its timeout, which left
+    // requests unanswered for 30 s. Nothing else runs on this worker between requests.
+    Atomics.wait(i32, mbox >> 2, value, 5);
   }
 }
 async function open() {
