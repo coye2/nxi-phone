@@ -1,5 +1,5 @@
 // Staging replaces BUILD with a content-derived version. Never mix running builds.
-const BUILD = '9a911f2a4999465f';
+const BUILD = 'beb86aa7cde84380';
 const PREFIX = 'nxi-browser-launcher-';
 const CACHE = PREFIX + BUILD;
 const scope = new URL('./', self.location.href);
