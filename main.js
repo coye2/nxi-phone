@@ -105,14 +105,18 @@ try {
     if (message.textContent.startsWith('Starting NX Infinity'))
       tell(`Starting NX Infinity… ${Math.round((Date.now() - startedAt) / 1000)} s (phones can take a minute)`);
   }, 5000);
-  phase('loading runtime');
+  // Launcher UI drawing: software on iPhone/iPad (the WebGL path crashed a real iPhone at startup),
+  // Avalonia's default elsewhere. ?render=gl or ?render=software overrides it for testing.
+  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const uiRender = new URLSearchParams(location.search).get('render') ?? (iOS ? 'software' : 'gl');
+  phase('loading runtime (ui ' + uiRender + ')');
   const { dotnet } = await import('./_framework/dotnet.js');
   const runtimeBuilder = await configureRuntimeDelivery(dotnet);
   const dumpShaders = new URLSearchParams(location.search).has('dumpShaders');
   // Fewer, larger minor GCs. Each GC has to stop ~50 threads, and the multithreaded WebAssembly
   // runtime sometimes never gets the finalizer thread to stop (the page freezes or aborts with
   // mono-threads.c:336). A bigger nursery makes that race much rarer.
-  const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
+  const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_RENDER', uiRender).withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
   clearInterval(startTicker); phase('runtime created');
   const api = (await runtime.getAssemblyExports(runtime.getConfig().mainAssemblyName)).NxInfinity.BrowserLauncher;
   activeApi = api;
