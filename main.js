@@ -8,7 +8,7 @@ import { restoreJitCache, keepJitCache } from './jit-cache.js';
 import { restoreSetup, saveKeys, saveFirmware, restoreFirmware } from './setup.js';
 import { startAudio } from './audio.js';
 import { startSessionView } from './session-view.js';
-import { exportDiagnostics } from './diagnostics.js';
+import { exportDiagnostics, phase } from './diagnostics.js';
 import { configureRuntimeDelivery } from './runtime-delivery.js';
 
 const message = document.getElementById('message');
@@ -17,7 +17,7 @@ initializeMobileShell();
 const explain = text => /unknown transient reason/i.test(text)
   ? 'This browser blocked on-device storage, so NXI can\'t keep games here. Private Browsing does this: open NXI in a normal tab or from your Home Screen. (' + text + ')'
   : text;
-const tell = text => { text = explain(text); message.textContent = text; reportMobileStatus(text); console.log('NXI-UI ' + text); };
+const tell = text => { text = explain(text); phase(text); message.textContent = text; reportMobileStatus(text); console.log('NXI-UI ' + text); };
 let activeApi = null;
 const diagnostics = document.getElementById('export-diagnostics');
 diagnostics.disabled = false;
@@ -105,6 +105,7 @@ try {
     if (message.textContent.startsWith('Starting NX Infinity'))
       tell(`Starting NX Infinity… ${Math.round((Date.now() - startedAt) / 1000)} s (phones can take a minute)`);
   }, 5000);
+  phase('loading runtime');
   const { dotnet } = await import('./_framework/dotnet.js');
   const runtimeBuilder = await configureRuntimeDelivery(dotnet);
   const dumpShaders = new URLSearchParams(location.search).has('dumpShaders');
@@ -112,13 +113,15 @@ try {
   // runtime sometimes never gets the finalizer thread to stop (the page freezes or aborts with
   // mono-threads.c:336). A bigger nursery makes that race much rarer.
   const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
-  clearInterval(startTicker);
+  clearInterval(startTicker); phase('runtime created');
   const api = (await runtime.getAssemblyExports(runtime.getConfig().mainAssemblyName)).NxInfinity.BrowserLauncher;
   activeApi = api;
   let restoreWarning = null;
   try { await restoreDeviceState(api, tell); }
   catch (error) { restoreWarning = 'Saved data could not be restored: ' + error.message; }
+  phase('runtime main starting');
   await runtime.runMain();
+  phase('runtime main started');
   globalThis.nxi = { runtime, api, saveDeviceState: () => saveDeviceState(api, { force: true, report: tell }) };
   // Firmware is restored on first Play instead of at startup: unpacking it takes a few hundred MB,
   // and on an iPhone startup plus restore could go past the page memory limit. Safari then reloads
@@ -127,13 +130,13 @@ try {
   let firmwareRestored = false, firmwareBlocked = false;
   async function ensureFirmware() {
     if (firmwareRestored || firmwareBlocked) return;
-    firmwareRestored = true;
+    firmwareRestored = true; phase('restoring firmware for Play');
     try { localStorage.setItem(FIRMWARE_PENDING, String(Date.now())); } catch {}
     try { const version = await restoreFirmware(api, tell); if (version) document.getElementById('setup-message').textContent = `Firmware ${version} restored from this device.`; }
     catch (error) { document.getElementById('setup-message').textContent = 'Saved firmware could not be restored. Open Setup and import the firmware again.'; }
-    finally { try { localStorage.removeItem(FIRMWARE_PENDING); } catch {} }
+    finally { try { localStorage.removeItem(FIRMWARE_PENDING); } catch {} phase('firmware restore finished'); }
   }
-  const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => { await ensureFirmware(); return target.Play(id); } : target[key] });
+  const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => { await ensureFirmware(); phase('Play pressed'); const r = await target.Play(id); phase('Play started'); return r; } : target[key] });
   globalThis.nxi.api = playApi;
   const mobile = startMobile(playApi);
   startInput(api, document.getElementById('game'));
@@ -293,13 +296,17 @@ try {
   folderButton.onclick = () => { clearKeyRecovery(); firmwareFolder.click(); };
   const importFirmware = async (input, control) => {
     const files = [...input.files]; clearKeyRecovery(); if (!files.length) return;
+    phase(`firmware import: ${files.length} file(s), ${Math.round(files.reduce((n, f) => n + f.size, 0) / 1048576)} MB`);
+    let lastTenth = -1;
     const release = beginImport(control, {});
     if (!release) { input.value = ''; return; }
     document.getElementById('setup-message').textContent = 'Importing firmware…';
     try {
       const version = await saveFirmware(files, api, { onProgress: (done, total) => {
+        const tenth = Math.floor(done / total * 10); if (tenth !== lastTenth) { lastTenth = tenth; phase(done === total ? 'firmware: verifying and installing' : `firmware: copying ${tenth * 10}%`); }
         document.getElementById('setup-message').textContent = done === total ? 'Verifying and installing firmware…' : `Copying firmware · ${Math.floor(done / total * 100)}%`;
       } });
+      phase('firmware installed');
       firmwareRestored = true; firmwareBlocked = false;
       document.getElementById('setup-message').textContent = `Firmware ${version} installed and saved on this device.`;
     } catch (error) { document.getElementById('setup-message').textContent = error.message; }
@@ -312,12 +319,15 @@ try {
     document.getElementById('setup-message').textContent = compatibleOnly ? 'Importing compatible key entries…' : 'Importing keys…';
     let savedMessage;
     try {
+      phase(`keys import: ${file.name}, ${file.size} bytes`);
       const result = await saveKeys(file, api, { compatibleOnly });
+      phase('keys import: saved, re-checking games');
       savedMessage = compatibleOnly
         ? `${result.name}: compatible entries saved on this device; ${result.incompatibleEntries} incompatible ${result.incompatibleEntries === 1 ? 'entry' : 'entries'} skipped.` +
           (result.retainedEntries > 0 ? ` ${result.retainedEntries} previously saved ${result.retainedEntries === 1 ? 'entry' : 'entries'} kept.` : '')
         : `${result.name} saved on this device.`;
       await mobile.refresh(true);
+      phase('keys import: done');
       document.getElementById('setup-message').textContent = savedMessage;
     } catch (error) {
       document.getElementById('setup-message').textContent = savedMessage
