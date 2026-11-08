@@ -134,7 +134,7 @@ export async function restoreSetup(api) {
     let bytes;
     try { bytes = new Uint8Array(await file.arrayBuffer()); }
     catch { fail(name, 'read_failed', 'could not be read'); continue; }
-    try { await api.ImportKeys(name, prepareKeyFile(name, bytes).bytes); report.restored.push(name); }
+    try { await (api.RestoreKeys ?? api.ImportKeys)(name, prepareKeyFile(name, bytes).bytes); report.restored.push(name); }
     catch { fail(name, 'import_failed', 'could not be loaded'); }
   }
   return report;

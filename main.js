@@ -108,7 +108,10 @@ try {
   const { dotnet } = await import('./_framework/dotnet.js');
   const runtimeBuilder = await configureRuntimeDelivery(dotnet);
   const dumpShaders = new URLSearchParams(location.search).has('dumpShaders');
-  const runtime = await runtimeBuilder.withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
+  // Fewer, larger minor GCs. Each GC has to stop ~50 threads, and the multithreaded WebAssembly
+  // runtime sometimes never gets the finalizer thread to stop (the page freezes or aborts with
+  // mono-threads.c:336). A bigger nursery makes that race much rarer.
+  const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
   clearInterval(startTicker);
   const api = (await runtime.getAssemblyExports(runtime.getConfig().mainAssemblyName)).NxInfinity.BrowserLauncher;
   activeApi = api;
@@ -117,7 +120,22 @@ try {
   catch (error) { restoreWarning = 'Saved data could not be restored: ' + error.message; }
   await runtime.runMain();
   globalThis.nxi = { runtime, api, saveDeviceState: () => saveDeviceState(api, { force: true, report: tell }) };
-  const mobile = startMobile(api);
+  // Firmware is restored on first Play instead of at startup: unpacking it takes a few hundred MB,
+  // and on an iPhone startup plus restore could go past the page memory limit. Safari then reloads
+  // and the restore runs again ("A problem repeatedly occurred"). The marker catches that.
+  const FIRMWARE_PENDING = 'nxi-firmware-restore-pending';
+  let firmwareRestored = false, firmwareBlocked = false;
+  async function ensureFirmware() {
+    if (firmwareRestored || firmwareBlocked) return;
+    firmwareRestored = true;
+    try { localStorage.setItem(FIRMWARE_PENDING, String(Date.now())); } catch {}
+    try { const version = await restoreFirmware(api, tell); if (version) document.getElementById('setup-message').textContent = `Firmware ${version} restored from this device.`; }
+    catch (error) { document.getElementById('setup-message').textContent = 'Saved firmware could not be restored. Open Setup and import the firmware again.'; }
+    finally { try { localStorage.removeItem(FIRMWARE_PENDING); } catch {} }
+  }
+  const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => { await ensureFirmware(); return target.Play(id); } : target[key] });
+  globalThis.nxi.api = playApi;
+  const mobile = startMobile(playApi);
   startInput(api, document.getElementById('game'));
   startAudio(api, globalThis.nxiWasmMemory);
   // CPU translations from earlier launches (must load before the first game translates code).
@@ -131,8 +149,13 @@ try {
     const restoredSetup = await restoreSetup(api);
     setupWarnings.push(...restoredSetup.failed.map(item => item.message));
   } catch (error) { setupWarnings.push(error.message); }
-  try { const version = await restoreFirmware(api, tell); if (version) document.getElementById('setup-message').textContent = `Firmware ${version} restored from this device.`; }
-  catch (error) { setupWarnings.push('Saved firmware could not be restored. Open Setup and import the firmware again.'); }
+  // A restore that never finished means the page was killed during it (iPhone memory).
+  try {
+    if (localStorage.getItem(FIRMWARE_PENDING)) {
+      firmwareBlocked = true; localStorage.removeItem(FIRMWARE_PENDING);
+      setupWarnings.push('NXI closed while restoring your firmware last time, most likely because the phone ran out of memory. It was not restored this time, so homebrew still works. Open Setup and import the firmware again to retry.');
+    }
+  } catch {}
   const restored = await restoreLibrary(api, count => tell(`Restoring library · ${count} games`));
   // Restored metadata is visible before OPFS streams are registered. Refresh now
   // so the first tap uses Play rather than a stale "review this file" action.
@@ -277,6 +300,7 @@ try {
       const version = await saveFirmware(files, api, { onProgress: (done, total) => {
         document.getElementById('setup-message').textContent = done === total ? 'Verifying and installing firmware…' : `Copying firmware · ${Math.floor(done / total * 100)}%`;
       } });
+      firmwareRestored = true; firmwareBlocked = false;
       document.getElementById('setup-message').textContent = `Firmware ${version} installed and saved on this device.`;
     } catch (error) { document.getElementById('setup-message').textContent = error.message; }
     finally { input.value = ''; release(); }
