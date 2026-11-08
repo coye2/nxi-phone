@@ -48,7 +48,7 @@ export class GpuPresentation {
       this.canvas.replaceWith(this.readbackCanvas);
       this.canvas = this.readbackCanvas;
     }
-    this.canvas.width = width; this.canvas.height = height;
+    if (this.canvas.width !== width || this.canvas.height !== height) { this.canvas.width = width; this.canvas.height = height; }
     this.canvas.getContext('2d').putImageData(new ImageData(frame, width, height), 0, 0);
   }
 

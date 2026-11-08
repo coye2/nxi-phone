@@ -94,6 +94,8 @@ function fail(error) {
   device?.destroy();
 }
 
+let presentCrop = null, presentTarget = null, readbackOut = null;
+
 async function pump() {
   while (!stopped) {
     views();
@@ -538,34 +540,43 @@ function run(op, p, size) {
       const t = textures.get(u32(p)); if (!t) throw new Error('Unknown GPU texture');
       const w = u32(p + 4) || t.width, h = u32(p + 8) || t.height;
       if (w > t.width || h > t.height) throw new Error('Invalid GPU present bounds');
+      // Reused per frame size: a new texture/buffer per frame made the GPU process pool
+      // gigabytes before it shrank (mostly the ?gpu=readback test path).
+      if (!presentCrop) presentCrop = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       let target;
-      if (readback) target = device.createTexture({ size: [w, h], format: canvasFormat, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
-      else {
+      if (readback) {
+        if (presentTarget?.width !== w || presentTarget?.height !== h) {
+          presentTarget?.destroy();
+          presentTarget = device.createTexture({ size: [w, h], format: canvasFormat, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+        }
+        target = presentTarget;
+      } else {
         const canvas = context.canvas;
         if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
         target = context.getCurrentTexture();
       }
-      const crop = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      device.queue.writeBuffer(crop, 0, new Float32Array([w / t.width, h / t.height, 0, 0]));
-      const group = device.createBindGroup({ layout: blit.getBindGroupLayout(0), entries: [{ binding: 0, resource: t.target }, { binding: 1, resource: sampler }, { binding: 2, resource: { buffer: crop } }] });
+      device.queue.writeBuffer(presentCrop, 0, new Float32Array([w / t.width, h / t.height, 0, 0]));
+      const group = device.createBindGroup({ layout: blit.getBindGroupLayout(0), entries: [{ binding: 0, resource: t.target }, { binding: 1, resource: sampler }, { binding: 2, resource: { buffer: presentCrop } }] });
       const enc = device.createCommandEncoder();
       const pass = enc.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }] });
       pass.setPipeline(blit); pass.setBindGroup(0, group); pass.draw(3); pass.end();
       if (readback && !readbackBusy) {
         const bytesPerRow = Math.ceil(w * 4 / 256) * 256;
-        const out = device.createBuffer({ size: bytesPerRow * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+        if (readbackOut?.size !== bytesPerRow * h) {
+          readbackOut?.destroy();
+          readbackOut = device.createBuffer({ size: bytesPerRow * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+        }
+        const out = readbackOut;
         enc.copyTextureToBuffer({ texture: target }, { buffer: out, bytesPerRow }, [w, h]);
         readbackBusy = true;
         device.queue.submit([enc.finish()]);
         out.mapAsync(GPUMapMode.READ).then(() => {
           const src = new Uint8Array(out.getMappedRange()), px = new Uint8ClampedArray(w * h * 4);
           for (let y = 0; y < h; y++) px.set(src.subarray(y * bytesPerRow, y * bytesPerRow + w * 4), y * w * 4);
-          out.destroy(); readbackBusy = false;
+          out.unmap(); readbackBusy = false;
           postMessage({ frame: px, width: w, height: h }, [px.buffer]);
         }, () => { readbackBusy = false; });
       } else device.queue.submit([enc.finish()]);
-      crop.destroy();
-      if (readback) target.destroy();
       Atomics.add(head, 6, 1); // presented frames, read by the page
       break;
     }

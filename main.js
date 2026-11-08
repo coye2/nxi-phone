@@ -333,7 +333,7 @@ try {
     .catch(() => { console.warn('NXI saved CPU cache was unavailable; translations will rebuild.'); return 0; });
   globalThis.nxi.jitRestore = jitRestore;
   const frameAddress = (await api.FrameAddress()) >>> 0;
-  let lastSeq = 0, lastPresented = 0;
+  let lastSeq = 0, lastPresented = 0, frameImage = null;
   function draw() {
     if (gpu.poll()) {
       const presented = Atomics.load(new Int32Array(runtime.Module.HEAPU8.buffer, ringAddress, 16), 6);
@@ -345,11 +345,14 @@ try {
     const heap = runtime.Module.HEAPU8.buffer, head = new Int32Array(heap, frameAddress, 4);
     const seq = Atomics.load(head, 0), w = Atomics.load(head, 1), h = Atomics.load(head, 2);
     if (seq !== lastSeq && w > 0 && h > 0 && w <= 1920 && h <= 1080) {
-      const pixels = new Uint8ClampedArray(w * h * 4);
-      pixels.set(new Uint8Array(heap, frameAddress + 16, pixels.length));
+      // One reused image per frame size: a new one (and a canvas resize, which reallocates
+      // its backing store) every frame made memory swing by gigabytes on phones.
+      if (frameImage?.width !== w || frameImage?.height !== h) frameImage = new ImageData(w, h);
+      frameImage.data.set(new Uint8Array(heap, frameAddress + 16, w * h * 4));
       if (seq === Atomics.load(head, 0)) {
-        lastSeq = seq; canvas.width = w; canvas.height = h;
-        ctx.putImageData(new ImageData(pixels, w, h), 0, 0);
+        lastSeq = seq;
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+        ctx.putImageData(frameImage, 0, 0);
       }
     }
     requestAnimationFrame(draw);
