@@ -9,15 +9,22 @@ const HOT_THRESHOLD = 256;
 
 let memory, mbox, i32, view, mboxGlobal, generation = -1;
 const cache = new Map();
-// Each translated block is its own WebAssembly module; WebKit (iOS) spends a lot of memory per
-// module, so keep at most this many and drop the oldest quarter when full. Dropped entries
-// come back from the host's translation cache on their next use.
-const CACHE_LIMIT = 50000;
+// Each translated block is its own WebAssembly module, and WebKit (iOS) keeps about 7 KB per
+// module; games run tens of thousands of blocks once (boot, loading) and never again. Keep the
+// most recently used ones: every hit stamps the entry, and when the cache is full the least
+// recently used half goes. Dropped entries come back from the host's translation cache.
+const CACHE_LIMIT = 12000;
+let tick = 0;
 function remember(pc, e) {
+  e.t = ++tick;
   cache.set(pc, e);
   if (cache.size <= CACHE_LIMIT) return;
-  let drop = cache.size - (CACHE_LIMIT * 3 >> 2);
-  for (const key of cache.keys()) { if (key === pc) continue; cache.delete(key); if (--drop <= 0) break; }
+  const stamps = new Float64Array(cache.size);
+  let i = 0;
+  for (const entry of cache.values()) stamps[i++] = entry.t;
+  stamps.sort();
+  const cut = stamps[cache.size >> 1];
+  for (const [key, entry] of cache) if (entry.t <= cut && key !== pc) cache.delete(key);
   stats.evictions++;
 }
 // Perf counters, printed every 5 s while busy (NXI-CPU-STATS).
@@ -99,6 +106,7 @@ function lookup(pc) {
     remember(pc, e);
     return fn;
   }
+  e.t = ++tick;
   return e.fn;
 }
 
