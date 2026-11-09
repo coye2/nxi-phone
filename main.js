@@ -311,6 +311,18 @@ try {
     const release = beginImport(control, {});
     if (!release) { input.value = ''; return; }
     document.getElementById('setup-message').textContent = 'Importing firmware…';
+    // The native install reads the package three times; show which pass and how far, with time.
+    const started = Date.now(); let lastStep = '';
+    const passes = { preparing: 'Preparing', checking: 'Checking', verifying: 'Verifying (decrypting every file)', installing: 'Installing' };
+    const watch = setInterval(() => {
+      let progress = ''; try { progress = api.FirmwareProgress?.() ?? ''; } catch {}
+      if (!progress) return;
+      const [stage, read, size] = progress.split('|'), percent = size > 0 ? Math.min(99, Math.floor(read / size * 100)) : 0;
+      const step = `firmware: ${stage} ${Math.floor(percent / 25) * 25}%`;
+      if (step !== lastStep) { lastStep = step; phase(step); }
+      const seconds = Math.round((Date.now() - started) / 1000);
+      document.getElementById('setup-message').textContent = `${passes[stage] ?? stage} firmware · ${percent}% · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} (phones can take a few minutes)`;
+    }, 1000);
     try {
       const version = await saveFirmware(files, api, { onProgress: (done, total) => {
         const tenth = Math.floor(done / total * 10); if (tenth !== lastTenth) { lastTenth = tenth; phase(done === total ? 'firmware: verifying and installing' : `firmware: copying ${tenth * 10}%`); }
@@ -319,8 +331,8 @@ try {
       phase('firmware installed');
       firmwareRestored = true; firmwareBlocked = false;
       document.getElementById('setup-message').textContent = `Firmware ${version} installed and saved on this device.`;
-    } catch (error) { document.getElementById('setup-message').textContent = error.message; }
-    finally { input.value = ''; release(); }
+    } catch (error) { phase('firmware failed: ' + error.message); document.getElementById('setup-message').textContent = error.message; }
+    finally { clearInterval(watch); input.value = ''; release(); }
   };
   firmware.onchange = () => importFirmware(firmware, firmwareButton);
   firmwareFolder.onchange = () => importFirmware(firmwareFolder, folderButton);
