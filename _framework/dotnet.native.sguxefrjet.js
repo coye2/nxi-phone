@@ -350,7 +350,7 @@ function updateMemoryViews() {
  Module["HEAPU64"] = HEAPU64 = new BigUint64Array(b);
 }
 
-var INITIAL_MEMORY = Module["INITIAL_MEMORY"] || 53542912;
+var INITIAL_MEMORY = Module["INITIAL_MEMORY"] || 46202880;
 
 if (ENVIRONMENT_IS_PTHREAD) {
  wasmMemory = Module["wasmMemory"];
@@ -3364,21 +3364,8 @@ var SYSCALLS = {
  }
 };
 
-function ___syscall_chdir(path) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(3, 0, 1, path);
- path >>>= 0;
- try {
-  path = SYSCALLS.getStr(path);
-  FS.chdir(path);
-  return 0;
- } catch (e) {
-  if (typeof FS == "undefined" || !(e.name === "ErrnoError")) throw e;
-  return -e.errno;
- }
-}
-
 function ___syscall_chmod(path, mode) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(4, 0, 1, path, mode);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(3, 0, 1, path, mode);
  path >>>= 0;
  try {
   path = SYSCALLS.getStr(path);
@@ -4080,7 +4067,7 @@ var DNS = {
 };
 
 function ___syscall_connect(fd, addr, addrlen, d1, d2, d3) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(5, 0, 1, fd, addr, addrlen, d1, d2, d3);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(4, 0, 1, fd, addr, addrlen, d1, d2, d3);
  addr >>>= 0;
  addrlen >>>= 0;
  try {
@@ -4095,7 +4082,7 @@ function ___syscall_connect(fd, addr, addrlen, d1, d2, d3) {
 }
 
 function ___syscall_faccessat(dirfd, path, amode, flags) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(6, 0, 1, dirfd, path, amode, flags);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(5, 0, 1, dirfd, path, amode, flags);
  path >>>= 0;
  try {
   path = SYSCALLS.getStr(path);
@@ -4125,12 +4112,12 @@ function ___syscall_faccessat(dirfd, path, amode, flags) {
 }
 
 function ___syscall_fadvise64(fd, offset, len, advice) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(7, 0, 0, fd, offset, len, advice);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(6, 0, 0, fd, offset, len, advice);
  return 0;
 }
 
 function ___syscall_fchmod(fd, mode) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(8, 0, 1, fd, mode);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(7, 0, 1, fd, mode);
  try {
   FS.fchmod(fd, mode);
   return 0;
@@ -4141,7 +4128,7 @@ function ___syscall_fchmod(fd, mode) {
 }
 
 function ___syscall_fcntl64(fd, cmd, varargs) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(9, 0, 1, fd, cmd, varargs);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(8, 0, 1, fd, cmd, varargs);
  varargs >>>= 0;
  SYSCALLS.varargs = varargs;
  try {
@@ -4195,7 +4182,7 @@ function ___syscall_fcntl64(fd, cmd, varargs) {
 }
 
 function ___syscall_fstat64(fd, buf) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(10, 0, 1, fd, buf);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(9, 0, 1, fd, buf);
  buf >>>= 0;
  try {
   var stream = SYSCALLS.getStreamFromFD(fd);
@@ -4207,7 +4194,7 @@ function ___syscall_fstat64(fd, buf) {
 }
 
 function ___syscall_statfs64(path, size, buf) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(12, 0, 1, path, size, buf);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(11, 0, 1, path, size, buf);
  path >>>= 0;
  size >>>= 0;
  buf >>>= 0;
@@ -4231,7 +4218,7 @@ function ___syscall_statfs64(path, size, buf) {
 }
 
 function ___syscall_fstatfs64(fd, size, buf) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(11, 0, 1, fd, size, buf);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(10, 0, 1, fd, size, buf);
  size >>>= 0;
  buf >>>= 0;
  try {
@@ -4244,7 +4231,7 @@ function ___syscall_fstatfs64(fd, size, buf) {
 }
 
 function ___syscall_ftruncate64(fd, length) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(13, 0, 1, fd, length);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(12, 0, 1, fd, length);
  length = bigintToI53Checked(length);
  try {
   if (isNaN(length)) return 61;
@@ -4259,7 +4246,7 @@ function ___syscall_ftruncate64(fd, length) {
 var stringToUTF8 = (str, outPtr, maxBytesToWrite) => stringToUTF8Array(str, GROWABLE_HEAP_U8(), outPtr, maxBytesToWrite);
 
 function ___syscall_getcwd(buf, size) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(14, 0, 1, buf, size);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(13, 0, 1, buf, size);
  buf >>>= 0;
  size >>>= 0;
  try {
@@ -4276,7 +4263,7 @@ function ___syscall_getcwd(buf, size) {
 }
 
 function ___syscall_getdents64(fd, dirp, count) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(15, 0, 1, fd, dirp, count);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(14, 0, 1, fd, dirp, count);
  dirp >>>= 0;
  count >>>= 0;
  try {
@@ -4321,7 +4308,7 @@ function ___syscall_getdents64(fd, dirp, count) {
 }
 
 function ___syscall_ioctl(fd, op, varargs) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(16, 0, 1, fd, op, varargs);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(15, 0, 1, fd, op, varargs);
  varargs >>>= 0;
  SYSCALLS.varargs = varargs;
  try {
@@ -4439,7 +4426,7 @@ function ___syscall_ioctl(fd, op, varargs) {
 }
 
 function ___syscall_lstat64(path, buf) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(17, 0, 1, path, buf);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(16, 0, 1, path, buf);
  path >>>= 0;
  buf >>>= 0;
  try {
@@ -4452,7 +4439,7 @@ function ___syscall_lstat64(path, buf) {
 }
 
 function ___syscall_mkdirat(dirfd, path, mode) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(18, 0, 1, dirfd, path, mode);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(17, 0, 1, dirfd, path, mode);
  path >>>= 0;
  try {
   path = SYSCALLS.getStr(path);
@@ -4468,7 +4455,7 @@ function ___syscall_mkdirat(dirfd, path, mode) {
 }
 
 function ___syscall_newfstatat(dirfd, path, buf, flags) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(19, 0, 1, dirfd, path, buf, flags);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(18, 0, 1, dirfd, path, buf, flags);
  path >>>= 0;
  buf >>>= 0;
  try {
@@ -4485,7 +4472,7 @@ function ___syscall_newfstatat(dirfd, path, buf, flags) {
 }
 
 function ___syscall_openat(dirfd, path, flags, varargs) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(20, 0, 1, dirfd, path, flags, varargs);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(19, 0, 1, dirfd, path, flags, varargs);
  path >>>= 0;
  varargs >>>= 0;
  SYSCALLS.varargs = varargs;
@@ -4501,7 +4488,7 @@ function ___syscall_openat(dirfd, path, flags, varargs) {
 }
 
 function ___syscall_readlinkat(dirfd, path, buf, bufsize) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(21, 0, 1, dirfd, path, buf, bufsize);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(20, 0, 1, dirfd, path, buf, bufsize);
  path >>>= 0;
  buf >>>= 0;
  bufsize >>>= 0;
@@ -4522,7 +4509,7 @@ function ___syscall_readlinkat(dirfd, path, buf, bufsize) {
 }
 
 function ___syscall_renameat(olddirfd, oldpath, newdirfd, newpath) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(22, 0, 1, olddirfd, oldpath, newdirfd, newpath);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(21, 0, 1, olddirfd, oldpath, newdirfd, newpath);
  oldpath >>>= 0;
  newpath >>>= 0;
  try {
@@ -4539,7 +4526,7 @@ function ___syscall_renameat(olddirfd, oldpath, newdirfd, newpath) {
 }
 
 function ___syscall_rmdir(path) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(23, 0, 1, path);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(22, 0, 1, path);
  path >>>= 0;
  try {
   path = SYSCALLS.getStr(path);
@@ -4552,7 +4539,7 @@ function ___syscall_rmdir(path) {
 }
 
 function ___syscall_sendto(fd, message, length, flags, addr, addr_len) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(24, 0, 1, fd, message, length, flags, addr, addr_len);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(23, 0, 1, fd, message, length, flags, addr, addr_len);
  message >>>= 0;
  length >>>= 0;
  addr >>>= 0;
@@ -4571,7 +4558,7 @@ function ___syscall_sendto(fd, message, length, flags, addr, addr_len) {
 }
 
 function ___syscall_socket(domain, type, protocol) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(25, 0, 1, domain, type, protocol);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(24, 0, 1, domain, type, protocol);
  try {
   var sock = SOCKFS.createSocket(domain, type, protocol);
   return sock.stream.fd;
@@ -4582,7 +4569,7 @@ function ___syscall_socket(domain, type, protocol) {
 }
 
 function ___syscall_stat64(path, buf) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(26, 0, 1, path, buf);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(25, 0, 1, path, buf);
  path >>>= 0;
  buf >>>= 0;
  try {
@@ -4595,7 +4582,7 @@ function ___syscall_stat64(path, buf) {
 }
 
 function ___syscall_symlink(target, linkpath) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(27, 0, 1, target, linkpath);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(26, 0, 1, target, linkpath);
  target >>>= 0;
  linkpath >>>= 0;
  try {
@@ -4610,7 +4597,7 @@ function ___syscall_symlink(target, linkpath) {
 }
 
 function ___syscall_unlinkat(dirfd, path, flags) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(28, 0, 1, dirfd, path, flags);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(27, 0, 1, dirfd, path, flags);
  path >>>= 0;
  try {
   path = SYSCALLS.getStr(path);
@@ -4632,7 +4619,7 @@ function ___syscall_unlinkat(dirfd, path, flags) {
 var readI53FromI64 = ptr => GROWABLE_HEAP_U32()[((ptr) >>> 2) >>> 0] + GROWABLE_HEAP_I32()[(((ptr) + (4)) >>> 2) >>> 0] * 4294967296;
 
 function ___syscall_utimensat(dirfd, path, times, flags) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(29, 0, 1, dirfd, path, times, flags);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(28, 0, 1, dirfd, path, times, flags);
  path >>>= 0;
  times >>>= 0;
  try {
@@ -4812,7 +4799,7 @@ function __localtime_js(time, tmPtr) {
 }
 
 function __mmap_js(len, prot, flags, fd, offset, allocated, addr) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(30, 0, 1, len, prot, flags, fd, offset, allocated, addr);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(29, 0, 1, len, prot, flags, fd, offset, allocated, addr);
  len >>>= 0;
  offset = bigintToI53Checked(offset);
  allocated >>>= 0;
@@ -4831,23 +4818,8 @@ function __mmap_js(len, prot, flags, fd, offset, allocated, addr) {
  }
 }
 
-function __msync_js(addr, len, prot, flags, fd, offset) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(31, 0, 1, addr, len, prot, flags, fd, offset);
- addr >>>= 0;
- len >>>= 0;
- offset = bigintToI53Checked(offset);
- try {
-  if (isNaN(offset)) return 61;
-  SYSCALLS.doMsync(addr, SYSCALLS.getStreamFromFD(fd), len, flags, offset);
-  return 0;
- } catch (e) {
-  if (typeof FS == "undefined" || !(e.name === "ErrnoError")) throw e;
-  return -e.errno;
- }
-}
-
 function __munmap_js(addr, len, prot, flags, fd, offset) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(32, 0, 1, addr, len, prot, flags, fd, offset);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(30, 0, 1, addr, len, prot, flags, fd, offset);
  addr >>>= 0;
  len >>>= 0;
  offset = bigintToI53Checked(offset);
@@ -4917,13 +4889,13 @@ var _emscripten_exit_with_live_runtime = () => {
 };
 
 function __emscripten_runtime_keepalive_clear() {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(34, 0, 1);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(32, 0, 1);
  noExitRuntime = false;
  runtimeKeepaliveCounter = 0;
 }
 
 function _emscripten_force_exit(status) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(33, 0, 1, status);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(31, 0, 1, status);
  __emscripten_runtime_keepalive_clear();
  _exit(status);
 }
@@ -7931,7 +7903,7 @@ var stringToAscii = (str, buffer) => {
 };
 
 var _environ_get = function(__environ, environ_buf) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(35, 0, 1, __environ, environ_buf);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(33, 0, 1, __environ, environ_buf);
  __environ >>>= 0;
  environ_buf >>>= 0;
  var bufSize = 0;
@@ -7945,7 +7917,7 @@ var _environ_get = function(__environ, environ_buf) {
 };
 
 var _environ_sizes_get = function(penviron_count, penviron_buf_size) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(36, 0, 1, penviron_count, penviron_buf_size);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(34, 0, 1, penviron_count, penviron_buf_size);
  penviron_count >>>= 0;
  penviron_buf_size >>>= 0;
  var strings = getEnvStrings();
@@ -7957,7 +7929,7 @@ var _environ_sizes_get = function(penviron_count, penviron_buf_size) {
 };
 
 function _fd_close(fd) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(37, 0, 1, fd);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(35, 0, 1, fd);
  try {
   var stream = SYSCALLS.getStreamFromFD(fd);
   FS.close(stream);
@@ -7969,7 +7941,7 @@ function _fd_close(fd) {
 }
 
 function _fd_fdstat_get(fd, pbuf) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(38, 0, 1, fd, pbuf);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(36, 0, 1, fd, pbuf);
  pbuf >>>= 0;
  try {
   var rightsBase = 0;
@@ -8008,7 +7980,7 @@ function _fd_fdstat_get(fd, pbuf) {
 };
 
 function _fd_pread(fd, iov, iovcnt, offset, pnum) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(39, 0, 1, fd, iov, iovcnt, offset, pnum);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(37, 0, 1, fd, iov, iovcnt, offset, pnum);
  iov >>>= 0;
  iovcnt >>>= 0;
  offset = bigintToI53Checked(offset);
@@ -8042,7 +8014,7 @@ function _fd_pread(fd, iov, iovcnt, offset, pnum) {
 };
 
 function _fd_pwrite(fd, iov, iovcnt, offset, pnum) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(40, 0, 1, fd, iov, iovcnt, offset, pnum);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(38, 0, 1, fd, iov, iovcnt, offset, pnum);
  iov >>>= 0;
  iovcnt >>>= 0;
  offset = bigintToI53Checked(offset);
@@ -8060,7 +8032,7 @@ function _fd_pwrite(fd, iov, iovcnt, offset, pnum) {
 }
 
 function _fd_read(fd, iov, iovcnt, pnum) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(41, 0, 1, fd, iov, iovcnt, pnum);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(39, 0, 1, fd, iov, iovcnt, pnum);
  iov >>>= 0;
  iovcnt >>>= 0;
  pnum >>>= 0;
@@ -8076,7 +8048,7 @@ function _fd_read(fd, iov, iovcnt, pnum) {
 }
 
 function _fd_seek(fd, offset, whence, newOffset) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(42, 0, 1, fd, offset, whence, newOffset);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(40, 0, 1, fd, offset, whence, newOffset);
  offset = bigintToI53Checked(offset);
  newOffset >>>= 0;
  try {
@@ -8093,7 +8065,7 @@ function _fd_seek(fd, offset, whence, newOffset) {
 }
 
 function _fd_sync(fd) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(43, 0, 1, fd);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(41, 0, 1, fd);
  try {
   var stream = SYSCALLS.getStreamFromFD(fd);
   if (stream.stream_ops?.fsync) {
@@ -8107,7 +8079,7 @@ function _fd_sync(fd) {
 }
 
 function _fd_write(fd, iov, iovcnt, pnum) {
- if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(44, 0, 1, fd, iov, iovcnt, pnum);
+ if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(42, 0, 1, fd, iov, iovcnt, pnum);
  iov >>>= 0;
  iovcnt >>>= 0;
  pnum >>>= 0;
@@ -8820,14 +8792,13 @@ DOTNET.setup({
  gitHash: "0427b9abbead3fa64c6655eb4290c537397131fa"
 });
 
-var proxiedFunctionTable = [ _proc_exit, exitOnMainThread, pthreadCreateProxied, ___syscall_chdir, ___syscall_chmod, ___syscall_connect, ___syscall_faccessat, ___syscall_fadvise64, ___syscall_fchmod, ___syscall_fcntl64, ___syscall_fstat64, ___syscall_fstatfs64, ___syscall_statfs64, ___syscall_ftruncate64, ___syscall_getcwd, ___syscall_getdents64, ___syscall_ioctl, ___syscall_lstat64, ___syscall_mkdirat, ___syscall_newfstatat, ___syscall_openat, ___syscall_readlinkat, ___syscall_renameat, ___syscall_rmdir, ___syscall_sendto, ___syscall_socket, ___syscall_stat64, ___syscall_symlink, ___syscall_unlinkat, ___syscall_utimensat, __mmap_js, __msync_js, __munmap_js, _emscripten_force_exit, __emscripten_runtime_keepalive_clear, _environ_get, _environ_sizes_get, _fd_close, _fd_fdstat_get, _fd_pread, _fd_pwrite, _fd_read, _fd_seek, _fd_sync, _fd_write ];
+var proxiedFunctionTable = [ _proc_exit, exitOnMainThread, pthreadCreateProxied, ___syscall_chmod, ___syscall_connect, ___syscall_faccessat, ___syscall_fadvise64, ___syscall_fchmod, ___syscall_fcntl64, ___syscall_fstat64, ___syscall_fstatfs64, ___syscall_statfs64, ___syscall_ftruncate64, ___syscall_getcwd, ___syscall_getdents64, ___syscall_ioctl, ___syscall_lstat64, ___syscall_mkdirat, ___syscall_newfstatat, ___syscall_openat, ___syscall_readlinkat, ___syscall_renameat, ___syscall_rmdir, ___syscall_sendto, ___syscall_socket, ___syscall_stat64, ___syscall_symlink, ___syscall_unlinkat, ___syscall_utimensat, __mmap_js, __munmap_js, _emscripten_force_exit, __emscripten_runtime_keepalive_clear, _environ_get, _environ_sizes_get, _fd_close, _fd_fdstat_get, _fd_pread, _fd_pwrite, _fd_read, _fd_seek, _fd_sync, _fd_write ];
 
 var wasmImports = {
  /** @export */ __assert_fail: ___assert_fail,
  /** @export */ __emscripten_init_main_thread_js: ___emscripten_init_main_thread_js,
  /** @export */ __emscripten_thread_cleanup: ___emscripten_thread_cleanup,
  /** @export */ __pthread_create_js: ___pthread_create_js,
- /** @export */ __syscall_chdir: ___syscall_chdir,
  /** @export */ __syscall_chmod: ___syscall_chmod,
  /** @export */ __syscall_connect: ___syscall_connect,
  /** @export */ __syscall_faccessat: ___syscall_faccessat,
@@ -8861,7 +8832,6 @@ var wasmImports = {
  /** @export */ _gmtime_js: __gmtime_js,
  /** @export */ _localtime_js: __localtime_js,
  /** @export */ _mmap_js: __mmap_js,
- /** @export */ _msync_js: __msync_js,
  /** @export */ _munmap_js: __munmap_js,
  /** @export */ _tzset_js: __tzset_js,
  /** @export */ abort: _abort,
@@ -9516,8 +9486,6 @@ var _mono_aot_System_IO_FileSystem_DriveInfo_get_method = Module["_mono_aot_Syst
 
 var _mono_aot_System_IO_FileSystem_Watcher_get_method = Module["_mono_aot_System_IO_FileSystem_Watcher_get_method"] = a0 => (_mono_aot_System_IO_FileSystem_Watcher_get_method = Module["_mono_aot_System_IO_FileSystem_Watcher_get_method"] = wasmExports["mono_aot_System_IO_FileSystem_Watcher_get_method"])(a0);
 
-var _mono_aot_System_IO_MemoryMappedFiles_get_method = Module["_mono_aot_System_IO_MemoryMappedFiles_get_method"] = a0 => (_mono_aot_System_IO_MemoryMappedFiles_get_method = Module["_mono_aot_System_IO_MemoryMappedFiles_get_method"] = wasmExports["mono_aot_System_IO_MemoryMappedFiles_get_method"])(a0);
-
 var _mono_aot_System_IO_Pipelines_get_method = Module["_mono_aot_System_IO_Pipelines_get_method"] = a0 => (_mono_aot_System_IO_Pipelines_get_method = Module["_mono_aot_System_IO_Pipelines_get_method"] = wasmExports["mono_aot_System_IO_Pipelines_get_method"])(a0);
 
 var _mono_aot_System_IO_Pipes_get_method = Module["_mono_aot_System_IO_Pipes_get_method"] = a0 => (_mono_aot_System_IO_Pipes_get_method = Module["_mono_aot_System_IO_Pipes_get_method"] = wasmExports["mono_aot_System_IO_Pipes_get_method"])(a0);
@@ -9535,8 +9503,6 @@ var _mono_aot_System_Reflection_Emit_Lightweight_get_method = Module["_mono_aot_
 var _mono_aot_System_Reflection_Emit_get_method = Module["_mono_aot_System_Reflection_Emit_get_method"] = a0 => (_mono_aot_System_Reflection_Emit_get_method = Module["_mono_aot_System_Reflection_Emit_get_method"] = wasmExports["mono_aot_System_Reflection_Emit_get_method"])(a0);
 
 var _mono_aot_System_Reflection_Primitives_get_method = Module["_mono_aot_System_Reflection_Primitives_get_method"] = a0 => (_mono_aot_System_Reflection_Primitives_get_method = Module["_mono_aot_System_Reflection_Primitives_get_method"] = wasmExports["mono_aot_System_Reflection_Primitives_get_method"])(a0);
-
-var _mono_aot_System_Resources_Writer_get_method = Module["_mono_aot_System_Resources_Writer_get_method"] = a0 => (_mono_aot_System_Resources_Writer_get_method = Module["_mono_aot_System_Resources_Writer_get_method"] = wasmExports["mono_aot_System_Resources_Writer_get_method"])(a0);
 
 var _mono_aot_System_Runtime_InteropServices_JavaScript_get_method = Module["_mono_aot_System_Runtime_InteropServices_JavaScript_get_method"] = a0 => (_mono_aot_System_Runtime_InteropServices_JavaScript_get_method = Module["_mono_aot_System_Runtime_InteropServices_JavaScript_get_method"] = wasmExports["mono_aot_System_Runtime_InteropServices_JavaScript_get_method"])(a0);
 
@@ -9574,13 +9540,9 @@ var _mono_aot_System_get_method = Module["_mono_aot_System_get_method"] = a0 => 
 
 var _mono_aot_netstandard_get_method = Module["_mono_aot_netstandard_get_method"] = a0 => (_mono_aot_netstandard_get_method = Module["_mono_aot_netstandard_get_method"] = wasmExports["mono_aot_netstandard_get_method"])(a0);
 
-var _cos = Module["_cos"] = a0 => (_cos = Module["_cos"] = wasmExports["cos"])(a0);
-
 var _log = Module["_log"] = a0 => (_log = Module["_log"] = wasmExports["log"])(a0);
 
 var _log2 = Module["_log2"] = a0 => (_log2 = Module["_log2"] = wasmExports["log2"])(a0);
-
-var _log10 = Module["_log10"] = a0 => (_log10 = Module["_log10"] = wasmExports["log10"])(a0);
 
 var _log2f = Module["_log2f"] = a0 => (_log2f = Module["_log2f"] = wasmExports["log2f"])(a0);
 
@@ -9589,6 +9551,8 @@ var _expf = Module["_expf"] = a0 => (_expf = Module["_expf"] = wasmExports["expf
 var _powf = Module["_powf"] = (a0, a1) => (_powf = Module["_powf"] = wasmExports["powf"])(a0, a1);
 
 var _log10f = Module["_log10f"] = a0 => (_log10f = Module["_log10f"] = wasmExports["log10f"])(a0);
+
+var _cos = Module["_cos"] = a0 => (_cos = Module["_cos"] = wasmExports["cos"])(a0);
 
 var _fmodf = Module["_fmodf"] = (a0, a1) => (_fmodf = Module["_fmodf"] = wasmExports["fmodf"])(a0, a1);
 
@@ -9633,6 +9597,8 @@ var _atanh = Module["_atanh"] = a0 => (_atanh = Module["_atanh"] = wasmExports["
 var _cbrt = Module["_cbrt"] = a0 => (_cbrt = Module["_cbrt"] = wasmExports["cbrt"])(a0);
 
 var _cosh = Module["_cosh"] = a0 => (_cosh = Module["_cosh"] = wasmExports["cosh"])(a0);
+
+var _log10 = Module["_log10"] = a0 => (_log10 = Module["_log10"] = wasmExports["log10"])(a0);
 
 var _sinh = Module["_sinh"] = a0 => (_sinh = Module["_sinh"] = wasmExports["sinh"])(a0);
 

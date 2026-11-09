@@ -116,6 +116,21 @@ try {
   const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const uiRender = new URLSearchParams(location.search).get('render') ?? (iOS ? 'software' : 'gl');
   phase('loading runtime (ui ' + uiRender + ')');
+  // Startup watchdog: on WebKit the .NET runtime very occasionally never finishes starting (a
+  // completion between its threads is lost). If a startup step stalls, reload; at most twice.
+  const STALLS = 'nxi-startup-stalls';
+  let stallTimer = 0;
+  const watchStartup = step => {
+    clearTimeout(stallTimer);
+    if (!step) { try { sessionStorage.removeItem(STALLS); } catch {} return; }
+    stallTimer = setTimeout(() => {
+      let stalls = 0; try { stalls = +(sessionStorage.getItem(STALLS) ?? 0); } catch {}
+      if (stalls >= 2) { tell('NX Infinity is taking unusually long to start. Close it fully and open it again.'); return; }
+      try { sessionStorage.setItem(STALLS, String(stalls + 1)); } catch {}
+      phase('startup stalled at ' + step + ', reloading'); location.reload();
+    }, 25000);
+  };
+  watchStartup('loading runtime');
   const { dotnet } = await import('./_framework/dotnet.js');
   const runtimeBuilder = await configureRuntimeDelivery(dotnet);
   const dumpShaders = new URLSearchParams(location.search).has('dumpShaders');
@@ -123,7 +138,7 @@ try {
   // runtime sometimes never gets the finalizer thread to stop (the page freezes or aborts with
   // mono-threads.c:336). A bigger nursery makes that race much rarer.
   const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_RENDER', uiRender).withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
-  clearInterval(startTicker); phase('runtime created');
+  clearInterval(startTicker); phase('runtime created'); watchStartup('runtime created');
   const api = (await runtime.getAssemblyExports(runtime.getConfig().mainAssemblyName)).NxInfinity.BrowserLauncher;
   activeApi = api;
   let restoreWarning = null;
@@ -131,7 +146,7 @@ try {
   catch (error) { restoreWarning = 'Saved data could not be restored: ' + error.message; }
   phase('runtime main starting');
   await runtime.runMain();
-  phase('runtime main started');
+  phase('runtime main started'); watchStartup(null);
   globalThis.nxi = { runtime, api, saveDeviceState: () => saveDeviceState(api, { force: true, report: tell }) };
   // Firmware is restored on first Play instead of at startup: unpacking it takes a few hundred MB,
   // and on an iPhone startup plus restore could go past the page memory limit. Safari then reloads
