@@ -9564,6 +9564,8 @@ var _mono_aot_System_Threading_Tasks_Parallel_get_method = Module["_mono_aot_Sys
 
 var _mono_aot_System_Threading_Thread_get_method = Module["_mono_aot_System_Threading_Thread_get_method"] = a0 => (_mono_aot_System_Threading_Thread_get_method = Module["_mono_aot_System_Threading_Thread_get_method"] = wasmExports["mono_aot_System_Threading_Thread_get_method"])(a0);
 
+var _mono_aot_System_Threading_ThreadPool_get_method = Module["_mono_aot_System_Threading_ThreadPool_get_method"] = a0 => (_mono_aot_System_Threading_ThreadPool_get_method = Module["_mono_aot_System_Threading_ThreadPool_get_method"] = wasmExports["mono_aot_System_Threading_ThreadPool_get_method"])(a0);
+
 var _mono_aot_System_Threading_get_method = Module["_mono_aot_System_Threading_get_method"] = a0 => (_mono_aot_System_Threading_get_method = Module["_mono_aot_System_Threading_get_method"] = wasmExports["mono_aot_System_Threading_get_method"])(a0);
 
 var _mono_aot_System_Web_HttpUtility_get_method = Module["_mono_aot_System_Web_HttpUtility_get_method"] = a0 => (_mono_aot_System_Web_HttpUtility_get_method = Module["_mono_aot_System_Web_HttpUtility_get_method"] = wasmExports["mono_aot_System_Web_HttpUtility_get_method"])(a0);
