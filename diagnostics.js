@@ -2,12 +2,19 @@
 
 // Breadcrumbs: the last steps of this run and of the run before it. If iOS kills the page (Safari
 // "A problem repeatedly occurred"), nothing else survives, so the next report shows where it died.
-const TRAIL = 'nxi-phase-trail', PREVIOUS = 'nxi-previous-run';
+// Earlier runs are kept too (newest first), so an export after reopening still shows the attempt.
+const TRAIL = 'nxi-phase-trail', PREVIOUS = 'nxi-previous-run', EARLIER = 'nxi-earlier-runs';
 const started = Date.now();
-let previousRun = null, trail = [];
+let previousRun = null, earlierRuns = [], trail = [];
 try {
   const last = JSON.parse(localStorage.getItem(TRAIL) || '[]');
-  if (Array.isArray(last) && last.length) { localStorage.setItem(PREVIOUS, JSON.stringify(last)); }
+  earlierRuns = JSON.parse(localStorage.getItem(EARLIER) || '[]');
+  if (!Array.isArray(earlierRuns)) earlierRuns = [];
+  if (Array.isArray(last) && last.length) {
+    const older = JSON.parse(localStorage.getItem(PREVIOUS) || 'null');
+    if (Array.isArray(older) && older.length) { earlierRuns.unshift(older); earlierRuns.length = Math.min(earlierRuns.length, 5); localStorage.setItem(EARLIER, JSON.stringify(earlierRuns)); }
+    localStorage.setItem(PREVIOUS, JSON.stringify(last));
+  }
   previousRun = JSON.parse(localStorage.getItem(PREVIOUS) || 'null');
 } catch { /* storage blocked: breadcrumbs are best effort */ }
 export function phase(name) {
@@ -31,7 +38,7 @@ export async function collectDiagnostics(api) {
       standalone: globalThis.matchMedia?.('(display-mode: standalone)').matches ?? false },
     device: { memoryGB: navigator.deviceMemory ?? null, cores: navigator.hardwareConcurrency ?? null,
       screen: globalThis.screen ? [screen.width, screen.height, globalThis.devicePixelRatio] : null },
-    thisRun: trail.slice(), previousRun,
+    thisRun: trail.slice(), previousRun, earlierRuns,
     session: null, core: null, errors: [],
     qualification: { retailGameVerified: false, physicalPhoneVerified: false },
   };
