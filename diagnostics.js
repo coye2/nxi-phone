@@ -18,7 +18,14 @@ try {
   previousRun = JSON.parse(localStorage.getItem(PREVIOUS) || 'null');
 } catch { /* storage blocked: breadcrumbs are best effort */ }
 export function phase(name) {
-  trail.push({ step: String(name).slice(0, 120), at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 100) / 10 });
+  const entry = { step: String(name).slice(0, 120), at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 100) / 10 };
+  // Progress lines ("· 4%", "1:05") update in place instead of pushing everything else out.
+  const shape = text => text.replace(/\d+/g, '#');
+  const last = trail[trail.length - 1];
+  if (last && shape(last.step) === shape(entry.step)) {
+    if (last.step === entry.step) return;
+    trail[trail.length - 1] = { ...entry, firstAt: last.firstAt ?? last.at };
+  } else trail.push(entry);
   if (trail.length > 40) trail.splice(0, trail.length - 40);
   try { localStorage.setItem(TRAIL, JSON.stringify(trail)); } catch {}
 }

@@ -33,6 +33,30 @@ function importFailure(error, phase, signal, cancellable) {
         : 'NXI could not save the game to device storage. Check free space and browser storage access, keep NXI open, then try again.';
   return Object.assign(new Error(message, { cause: error }), { code: phase === 'reading-file' ? 'import_read_failed' : phase === 'checking-game' ? 'import_check_failed' : 'import_storage_failed', phase, importFailure: true });
 }
+// Copy in import-worker.js (sync access handle, 8 MB chunks). Resolves false where the browser
+// has no sync access handles, so the caller falls back to the page-side writable stream.
+function copyInWorker(file, id, signal, onProgress, setPhase) {
+  return new Promise((resolve, reject) => {
+    let worker;
+    try { worker = new Worker(new URL('./import-worker.js', import.meta.url), { name: 'NXI import' }); }
+    catch { resolve(false); return; }
+    const finish = (fn, value) => { signal?.removeEventListener('abort', abort); worker.terminate(); fn(value); };
+    const abort = () => { worker.postMessage('cancel'); };
+    signal?.addEventListener('abort', abort, { once: true });
+    worker.onerror = event => finish(reject, new Error(event.message || 'The import worker failed.'));
+    worker.onmessage = ({ data }) => {
+      if (data.type === 'progress') onProgress(data.done, file.size);
+      else if (data.type === 'unsupported') finish(resolve, false);
+      else if (data.type === 'done') finish(resolve, true);
+      else if (data.type === 'error') {
+        setPhase(data.phase);
+        if (data.changed) finish(reject, changedFile());
+        else finish(reject, Object.assign(new Error(data.message), { name: data.name }));
+      }
+    };
+    worker.postMessage({ file, id, dir: DATA });
+  });
+}
 function changedFile() {
   return Object.assign(new Error('The selected file changed during import. Choose it again.'), { code: 'import_file_changed', importFailure: true });
 }
@@ -52,28 +76,32 @@ export async function importToLibrary(file, api, { signal, onProgress = () => {}
     if (estimate?.quota && file.size > estimate.quota - (estimate.usage || 0))
       throw Object.assign(new Error('Not enough device storage for this game. Free space and try again.'), { importFailure: true, code: 'import_storage_full' });
     data = await directory(DATA); index = await directory(INDEX);
-    writer = await (await data.getFileHandle(id, { create: true })).createWritable();
-    phase = 'reading-file';
-    reader = file.stream().getReader();
-    signal?.addEventListener('abort', cancelRead, { once: true });
     onPhase('copying');
-    let done = 0;
-    for (;;) {
-      signal?.throwIfAborted();
+    phase = 'writing-file';
+    const copied = typeof Worker === 'function' && await copyInWorker(file, id, signal, onProgress, next => { phase = next; });
+    if (!copied) {
+      writer = await (await data.getFileHandle(id, { create: true })).createWritable();
       phase = 'reading-file';
-      const part = await reader.read();
-      if (part.done) break;
-      if (done + part.value.byteLength > file.size) throw changedFile();
-      phase = 'writing-file';
-      await writer.write(part.value); done += part.value.byteLength; onProgress(done, file.size);
+      reader = file.stream().getReader();
+      signal?.addEventListener('abort', cancelRead, { once: true });
+      let done = 0;
+      for (;;) {
+        signal?.throwIfAborted();
+        phase = 'reading-file';
+        const part = await reader.read();
+        if (part.done) break;
+        if (done + part.value.byteLength > file.size) throw changedFile();
+        phase = 'writing-file';
+        await writer.write(part.value); done += part.value.byteLength; onProgress(done, file.size);
+      }
+      if (done !== file.size) throw changedFile();
     }
     signal?.throwIfAborted();
-    if (done !== file.size) throw changedFile();
     // Cancellation ends at this boundary: finish the durable record and native
     // registration together instead of presenting a cancelled committed import.
     cancellable = false; signal?.removeEventListener('abort', cancelRead);
     phase = 'closing-file'; onPhase('finalizing');
-    await writer.close(); writer = null;
+    if (writer) { await writer.close(); writer = null; }
     phase = 'saving-record';
     await writeJson(index, id + '.json', record);
     phase = 'checking-game'; onPhase('checking');
