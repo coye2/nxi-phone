@@ -98,6 +98,12 @@ try {
     ? 'NXI needs cross-origin isolation for its CPU threads. Reload after the site has installed.'
     : 'Open NXI using its HTTPS address. This browser cannot start CPU threads on an insecure page.');
   sessionStorage.removeItem('nxi-launcher-isolation-reload');
+  if (new URLSearchParams(location.search).has('memtest')) {
+    // Phone memory probe instead of NXI; see memtest.js.
+    const { runMemoryTest } = await import('./memtest.js');
+    try { await runMemoryTest(tell); } catch (error) { tell('memtest failed: ' + error.message); }
+    await new Promise(() => {});
+  }
   tell('Starting NX Infinity…');
   // Starting can take a minute on a phone; show it is still working.
   const startedAt = Date.now();
