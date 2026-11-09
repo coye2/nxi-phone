@@ -146,7 +146,21 @@ try {
     catch (error) { document.getElementById('setup-message').textContent = 'Saved firmware could not be restored. Open Setup and import the firmware again.'; }
     finally { try { localStorage.removeItem(FIRMWARE_PENDING); } catch {} phase('firmware restore finished'); }
   }
-  const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => { await ensureFirmware(); phase('Play pressed'); const r = await target.Play(id); phase('Play started'); return r; } : target[key] });
+  // After Play, log threads and runtime memory every 250 ms (one breadcrumb, updated in place):
+  // if the phone kills the page, the last values before it died are in the diagnostics.
+  const pthreads = () => { try { return globalThis.getDotnetRuntime(0).Module.PThread; } catch { return null; } };
+  let playWatch = 0, lastStatus = '';
+  const watchPlay = () => {
+    clearInterval(playWatch); const started = Date.now();
+    playWatch = setInterval(() => {
+      const P = pthreads(), seconds = (Date.now() - started) / 1000;
+      Promise.resolve().then(() => api.Status()).then(t => { lastStatus = JSON.parse(t).Status ?? ''; }).catch(() => {});
+      const status = lastStatus;
+      phase(`playing ${seconds.toFixed(1)} s: threads ${P?.runningWorkers?.length ?? '?'} (+${P?.unusedWorkers?.length ?? '?'} idle), runtime memory ${Math.round((globalThis.nxiWasmMemory?.buffer.byteLength ?? 0) / 1048576)} MB, ${status}`);
+      if (seconds > 60) clearInterval(playWatch);
+    }, 250);
+  };
+  const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => { await ensureFirmware(); phase('Play pressed'); watchPlay(); const r = await target.Play(id); phase('Play started'); return r; } : target[key] });
   globalThis.nxi.api = playApi;
   const mobile = startMobile(playApi);
   startInput(api, document.getElementById('game'));
