@@ -1,10 +1,28 @@
 // Reports stay on the device until the user chooses to share the downloaded file.
+import { readLoaderJournal, restoreLoaderJournal, mergeLoaderJournal, summarizeLoaderJournal } from './loader-journal.js';
 
 // Breadcrumbs: the last steps of this run and of the run before it. If iOS kills the page (Safari
 // "A problem repeatedly occurred"), nothing else survives, so the next report shows where it died.
 // Earlier runs are kept too (newest first), so an export after reopening still shows the attempt.
 const TRAIL = 'nxi-phase-trail', PREVIOUS = 'nxi-previous-run', EARLIER = 'nxi-earlier-runs';
 const LAST_PLAY = 'nxi-last-play-trail';
+function safeBuildIdentity(value) {
+  return value && /^[a-f0-9]{16}$/.test(value.offlineBuild) &&
+    /^[a-f0-9]{40}$/.test(value.sourceCommit) && /^[a-f0-9]{40}$/.test(value.nativeSourceCommit)
+    ? {offlineBuild:value.offlineBuild,sourceCommit:value.sourceCommit,nativeSourceCommit:value.nativeSourceCommit} : 'not-captured';
+}
+let playBuildIdentity = 'not-captured';
+export async function capturePlayBuild() {
+  const controller = new AbortController();
+  try {
+    const response = await bounded(() => fetch(new URL('./build-info.json', import.meta.url),
+      {cache:'no-store',signal:controller.signal}), 3000);
+    if (!response.ok || response.redirected) return;
+    const data = await bounded(() => response.json(), 3000);
+    playBuildIdentity = safeBuildIdentity({...data,offlineBuild:response.headers.get('X-NXI-Asset-Build')});
+  } catch { /* Unknown is preferable to attributing a later deployment to this Play. */ }
+  finally { controller.abort(); }
+}
 const PLAY_MILESTONES = ['boundary', 'completedBoundary', 'prerequisiteBegin', 'prerequisiteComplete', 'operation', 'loader', 'outcome'];
 function restoreMilestones(value) {
   return Object.fromEntries(PLAY_MILESTONES.flatMap(key => {
@@ -20,7 +38,7 @@ let lastPlay = null, recordingPlay = false;
 try {
   const saved = JSON.parse(localStorage.getItem(LAST_PLAY) || 'null');
   if (saved && typeof saved.startedAt === 'string' && Array.isArray(saved.trail))
-    lastPlay = { startedAt: saved.startedAt, buildIdentity: 'not-captured', trail: saved.trail.slice(-80), milestones: restoreMilestones(saved.milestones) };
+    lastPlay = { startedAt: saved.startedAt, buildIdentity: safeBuildIdentity(saved.buildIdentity), trail: saved.trail.slice(-80), milestones: restoreMilestones(saved.milestones), nativeLoader: restoreLoaderJournal(saved.nativeLoader) };
 } catch {}
 try {
   const last = JSON.parse(localStorage.getItem(TRAIL) || '[]');
@@ -42,7 +60,7 @@ export function phase(name, distinct = false) {
   const entry = { step: String(name).slice(0, 180), at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 100) / 10 };
   if (entry.step === 'Play pressed') {
     recordingPlay = true;
-    lastPlay = { startedAt: entry.at, buildIdentity: 'not-captured', trail: [], milestones: {} };
+    lastPlay = { startedAt: entry.at, buildIdentity: playBuildIdentity, trail: [], milestones: {} };
   }
   // Progress lines ("· 4%", "1:05") update in place instead of pushing everything else out.
   // Launch boundaries stay distinct: their counters change, and collapsing them hides the last completed stage.
@@ -55,7 +73,8 @@ export function phase(name, distinct = false) {
   if (trail.length > 80) trail.splice(0, trail.length - 80);
   try { localStorage.setItem(TRAIL, JSON.stringify(trail)); } catch {}
   // Startup-only manual reopens must not evict the last actual Play attempt.
-  // Its build is deliberately unknown; never assign the newly opened page's build.
+  // Its build is captured before Play if pinned metadata was available; never
+  // assign the newly opened page's build to a restored attempt.
   if (recordingPlay) {
     // Health/sample alternation can fill the rolling trail during a long wait.
     // Keep a fixed number of named observations independently, owned by this
@@ -152,6 +171,17 @@ export function drainBoundary(memory, address, lastSequence) {
     recordBoundary(stage, managed, pool, queued);
   } catch { return lastSequence; }
   return start;
+}
+
+export function drainLoaderJournal(memory, address, lastOrdinal) {
+  const batch = readLoaderJournal(memory, address, lastOrdinal);
+  if (!batch) return lastOrdinal;
+  // A startup-only reopen must not overwrite the previous Play's evidence.
+  if (lastPlay && (recordingPlay || lastPlay.nativeLoader?.generation === batch.generation)) {
+    lastPlay.nativeLoader = mergeLoaderJournal(lastPlay.nativeLoader, batch);
+    try { localStorage.setItem(LAST_PLAY, JSON.stringify(lastPlay)); } catch {}
+  }
+  return batch.total;
 }
 
 export function formatPlaySample({ seconds, running, idle, linearBytes, pendingMs, sampleAgeMs, status }) {
@@ -269,7 +299,8 @@ export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000
       standalone: globalThis.matchMedia?.('(display-mode: standalone)').matches ?? false },
     device: { memoryGB: navigator.deviceMemory ?? null, cores: navigator.hardwareConcurrency ?? null,
       screen: globalThis.screen ? [screen.width, screen.height, globalThis.devicePixelRatio] : null },
-    thisRun: trail.slice(), previousRun, earlierRuns, lastPlay,
+    thisRun: trail.slice(), previousRun, earlierRuns,
+    lastPlay: lastPlay ? { ...lastPlay, nativeLoader: summarizeLoaderJournal(lastPlay.nativeLoader) } : null,
     startup: startupSnapshot,
     session: null, core: null, execution: null, cpuMailboxes: null, gpuRing: null, gpuWorker: null, jitCache: null,
     errors: [], offlineBuild: null, availableOfflineBuild: null,

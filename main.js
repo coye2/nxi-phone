@@ -8,7 +8,7 @@ import { restoreJitCache, keepJitCache } from './jit-cache.js';
 import { restoreSetup, saveKeys, saveFirmware, restoreFirmware } from './setup.js';
 import { startAudio } from './audio.js';
 import { startSessionView } from './session-view.js';
-import { exportDiagnostics, phase, noteAppReload, recordBoundary, drainBoundary, formatPlaySample, createStartupDiagnostics, createPlayStatusObserver } from './diagnostics.js';
+import { exportDiagnostics, phase, noteAppReload, recordBoundary, drainBoundary, drainLoaderJournal, capturePlayBuild, formatPlaySample, createStartupDiagnostics, createPlayStatusObserver } from './diagnostics.js';
 import { configureRuntimeDelivery } from './runtime-delivery.js';
 import { readCpuMailboxDiagnostics, MAX_CPU_MAILBOX_SAMPLES } from './cpu-mailbox-diagnostics.js';
 
@@ -182,14 +182,21 @@ try {
   try { await restoreDeviceState(api, tell); }
   catch (error) { restoreWarning = 'Saved data could not be restored: ' + error.message; }
   phase('runtime main starting');
+  void capturePlayBuild();
   startup.phase('runtime-main');
   await runtime.runMain();
   phase('runtime main started'); watchStartup(null);
   let boundaryAddress = 0, boundarySequence = 0;
-  const copyBoundary = () => { boundarySequence = drainBoundary(globalThis.nxiWasmMemory, boundaryAddress, boundarySequence); };
+  let journalAddress = 0, journalOrdinal = 0;
+  const copyBoundary = () => {
+    boundarySequence = drainBoundary(globalThis.nxiWasmMemory, boundaryAddress, boundarySequence);
+    journalOrdinal = drainLoaderJournal(globalThis.nxiWasmMemory, journalAddress, journalOrdinal);
+  };
   globalThis.nxiDrainBoundary = copyBoundary;
   try { const slot = await api.BoundarySlot(); if (Number.isSafeInteger(slot) && slot > 0) boundaryAddress = slot; }
   catch { boundaryAddress = 0; }
+  try { const slot = await api.LoaderJournalSlot(); if (Number.isInteger(slot) && slot !== 0) journalAddress = slot >>> 0; }
+  catch { journalAddress = 0; }
   globalThis.nxi = { runtime, api, saveDeviceState: () => saveDeviceState(api, { force: true, report: tell }) };
   // Firmware is restored on first Play instead of at startup: unpacking it takes a few hundred MB,
   // and on an iPhone startup plus restore could go past the page memory limit. Safari then reloads
@@ -231,7 +238,7 @@ try {
   };
   const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => {
     await ensureFirmware(); const attempt = ++playAttempt; playPending = true;
-    phase('Play pressed'); const stopWatching = watchPlay();
+    copyBoundary(); phase('Play pressed'); const stopWatching = watchPlay();
     try {
       let result;
       try { result = await target.Play(id); }

@@ -1,8 +1,8 @@
 {
   "sourceRepository": "coye2/NX-Infinity-Development",
-  "sourceCommit": "abc6a29fb9b3eac3e33e8eb57f7c3cebeafd9e7e",
-  "nativeSourceCommit": "abc6a29fb9b3eac3e33e8eb57f7c3cebeafd9e7e",
-  "previousDeployment": "ae305b5696e4ce63ce415b60c60f866430db18cb",
+  "sourceCommit": "3aa6b5d841d031d05fa5706574def1d3105ef75e",
+  "nativeSourceCommit": "3aa6b5d841d031d05fa5706574def1d3105ef75e",
+  "previousDeployment": "b14c07d7bb7e64b8e7afc430b1c392fe7fb262f1",
   "sdk": "10.0.100",
   "workload": "10.0.100",
   "configuration": "Release",
@@ -53,21 +53,15 @@
     "Serialize CPU translations into one exact-size buffer",
     "Transfer CPU cache bytes directly without base64 and bound legacy decode buffers",
     "Capture post-launch cleanup from the shared stage slot during diagnostic export",
-    "Retain bounded native GPU exception type and phase after cleanup"
+    "Retain bounded native GPU exception type and phase after cleanup",
+    "Retain 64 native loader begin/end observations between page polls, with explicit loss and generation",
+    "Persist original pinned Play build identity through later updates and startup-only reloads",
+    "Classify invalid ReadUInt64 range and page mapping after failure without guest addresses or altering the exception"
   ],
-  "nativeLoaderTestsPassed": 16,
-  "launchStageChecksPassed": 33,
-  "cpuDiagnosticChecksPassed": 28,
-  "gpuReadinessChecksPassed": 7,
-  "cpuFailureCallbackChecksPassed": 9,
-  "cpuFailurePresentationChecksPassed": 12,
-  "faultCleanupHelperChecksPassed": 8,
-  "cpuCacheChecksPassed": 10,
   "incrementalCleanBase": "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-  "supervisorCallChecksPassed": 14,
-  "nativeContextInitializationChecksPassed": 24,
-  "browserAppJavaScriptChecksPassed": 284,
-  "cacheExportChecksPassed": 13,
-  "gpuFailureChecksPassed": 8,
-  "builtAt": "2026-11-10T11:12:49.8539755Z"
+  "builtAt": "2026-11-10T11:52:20.6493485Z",
+  "browserAppJavaScriptChecksPassed": 291,
+  "launchJournalChecksPassed": 9,
+  "memoryFaultChecksPassed": 30,
+  "cpuDiagnosticChecksPassed": 28
 }
