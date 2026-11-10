@@ -10,6 +10,15 @@ export class GpuPresentation {
   get header() { return new Int32Array(this.memory.buffer, this.address, 16); }
   get context2d() { return this.ready ? null : (this.ctx ??= this.canvas.getContext('2d')); }
 
+  // Independent of native exports and worker message handling during a hang.
+  // These fields are sampled individually; ready/BUSY does not prove guest work.
+  ringSnapshot() {
+    const header=this.header;
+    const [write,read,capacity,workerReady,completedFence,errorCount,presentedFrames]=
+      Array.from({length:7},(_,index)=>Atomics.load(header,index));
+    return {write,read,capacity,workerReady,completedFence,errorCount,presentedFrames};
+  }
+
   async start() {
     if (this.started) return this.ready;
     this.started = true;

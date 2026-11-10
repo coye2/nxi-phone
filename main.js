@@ -8,8 +8,11 @@ import { restoreJitCache, keepJitCache } from './jit-cache.js';
 import { restoreSetup, saveKeys, saveFirmware, restoreFirmware } from './setup.js';
 import { startAudio } from './audio.js';
 import { startSessionView } from './session-view.js';
-import { exportDiagnostics, phase, createStartupDiagnostics, createPlayStatusObserver } from './diagnostics.js';
+import { exportDiagnostics, phase, noteAppReload, recordBoundary, drainBoundary, formatPlaySample, createStartupDiagnostics, createPlayStatusObserver } from './diagnostics.js';
 import { configureRuntimeDelivery } from './runtime-delivery.js';
+import { readCpuMailboxDiagnostics, MAX_CPU_MAILBOX_SAMPLES } from './cpu-mailbox-diagnostics.js';
+
+globalThis.nxiRecordBoundary = recordBoundary;
 
 const message = document.getElementById('message');
 initializeMobileShell();
@@ -21,12 +24,17 @@ const tell = text => { text = explain(text); phase(text); message.textContent = 
 let activeApi = null;
 const startup = createStartupDiagnostics();
 const diagnostics = document.getElementById('export-diagnostics');
-diagnostics.disabled = false;
-diagnostics.onclick = async () => {
-  diagnostics.disabled = true;
+const gameDiagnostics = document.getElementById('game-diagnostics');
+diagnostics.disabled = gameDiagnostics.disabled = false;
+diagnostics.onclick = gameDiagnostics.onclick = async () => {
+  diagnostics.disabled = gameDiagnostics.disabled = true;
   try { await exportDiagnostics(activeApi, startup); }
-  catch (error) { document.getElementById('setup-message').textContent = 'Diagnostics could not be exported: ' + error.message; }
-  finally { diagnostics.disabled = false; }
+  catch (error) {
+    const failure = 'Diagnostics could not be exported: ' + error.message;
+    document.getElementById('setup-message').textContent = failure;
+    document.getElementById('game-diagnostics-message').textContent = failure;
+  }
+  finally { diagnostics.disabled = gameDiagnostics.disabled = false; }
 };
 // Setup and diagnostics must remain reachable when the runtime cannot start.
 const setupDialog = document.getElementById('setup-dialog');
@@ -44,10 +52,19 @@ const CapturedMemory = function (descriptor) {
 CapturedMemory.prototype = NativeMemory.prototype;
 WebAssembly.Memory = CapturedMemory;
 const cpuWorkers = [];
+const cpuMailboxRecords = [];
+let playAttempt = 0, playPending = false;
+globalThis.nxiReadCpuMailboxes = () => ({
+  ...readCpuMailboxDiagnostics(globalThis.nxiWasmMemory, cpuMailboxRecords, {totalWorkersCreated:cpuWorkers.length}),
+  capturePlayAttempt:playAttempt, nativePlayPromisePending:playPending
+});
 globalThis.nxiSpawnCpuWorker = mailbox => {
   const worker = new Worker(new URL('./nxi-cpu-worker.js', import.meta.url), { name: 'NXI CPU' });
+  cpuWorkers.push(worker);
+  cpuMailboxRecords.push({address:mailbox,workerId:cpuWorkers.length,birthPlayAttempt:playAttempt});
+  if(cpuMailboxRecords.length>MAX_CPU_MAILBOX_SAMPLES)cpuMailboxRecords.shift();
   worker.onerror = e => tell('CPU worker failed: ' + e.message);
-  worker.postMessage({ memory: globalThis.nxiWasmMemory, mailbox }); cpuWorkers.push(worker);
+  worker.postMessage({ memory: globalThis.nxiWasmMemory, mailbox });
 };
 let ioWorker, storageReady;
 globalThis.nxiWorkerCounters = () => ({ cpuWorkersCreated: cpuWorkers.length, storageWorkerCreated: ioWorker ? 1 : 0 });
@@ -95,6 +112,7 @@ try {
     await waitForOfflineActivation(registration);
     if (!sessionStorage.getItem('nxi-launcher-isolation-reload')) {
       sessionStorage.setItem('nxi-launcher-isolation-reload', '1');
+      noteAppReload('isolation');
       location.reload();
       await new Promise(() => {});
     }
@@ -132,7 +150,7 @@ try {
       let stalls = 0; try { stalls = +(sessionStorage.getItem(STALLS) ?? 0); } catch {}
       if (stalls >= 2) { tell('NX Infinity is taking unusually long to start. Close it fully and open it again.'); return; }
       try { sessionStorage.setItem(STALLS, String(stalls + 1)); } catch {}
-      phase('startup stalled at ' + step + ', reloading'); location.reload();
+      noteAppReload('startup-stall'); phase('startup stalled at ' + step + ', reloading'); location.reload();
     }, 25000);
   };
   watchStartup('loading runtime');
@@ -158,6 +176,11 @@ try {
   startup.phase('runtime-main');
   await runtime.runMain();
   phase('runtime main started'); watchStartup(null);
+  let boundaryAddress = 0, boundarySequence = 0;
+  const copyBoundary = () => { boundarySequence = drainBoundary(globalThis.nxiWasmMemory, boundaryAddress, boundarySequence); };
+  globalThis.nxiDrainBoundary = copyBoundary;
+  try { const slot = await api.BoundarySlot(); if (Number.isSafeInteger(slot) && slot > 0) boundaryAddress = slot; }
+  catch { boundaryAddress = 0; }
   globalThis.nxi = { runtime, api, saveDeviceState: () => saveDeviceState(api, { force: true, report: tell }) };
   // Firmware is restored on first Play instead of at startup: unpacking it takes a few hundred MB,
   // and on an iPhone startup plus restore could go past the page memory limit. Safari then reloads
@@ -179,14 +202,31 @@ try {
   const watchPlay = () => {
     clearInterval(playWatch); playObserver?.dispose(); const started = Date.now();
     const observer = playObserver = createPlayStatusObserver(api);
-    playWatch = setInterval(() => {
+    const timer = playWatch = setInterval(() => {
       const P = pthreads(), seconds = (Date.now() - started) / 1000;
+      copyBoundary();
       observer.poll();
-      phase(`playing ${seconds.toFixed(1)} s: threads ${P?.runningWorkers?.length ?? '?'} (+${P?.unusedWorkers?.length ?? '?'} idle), linear buffer ${Math.round((globalThis.nxiWasmMemory?.buffer.byteLength ?? 0) / 1048576)} MiB, ${observer.status}`);
-      if (seconds > 60) { clearInterval(playWatch); observer.dispose(); }
+      const health = observer.health;
+      let linearBytes = 0;
+      try { linearBytes = globalThis.nxiWasmMemory?.buffer?.byteLength ?? 0; } catch { linearBytes = 0; }
+      phase(formatPlaySample({
+        seconds, running: P?.runningWorkers?.length, idle: P?.unusedWorkers?.length, linearBytes,
+        pendingMs: health.pendingMs, sampleAgeMs: health.sampleAgeMs, status: observer.status,
+      }));
+      // Native first-frame timeout starts after loading and lasts two minutes.
+      // Keep the trail through that outcome, while bounding a hung native call.
+      if (seconds > 180) stop();
     }, 250);
+    const stop = () => { clearInterval(timer); observer.dispose(); copyBoundary(); };
+    return stop;
   };
-  const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => { await ensureFirmware(); phase('Play pressed'); watchPlay(); const r = await target.Play(id); phase('Play started'); return r; } : target[key] });
+  const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => {
+    await ensureFirmware(); const attempt = ++playAttempt; playPending = true;
+    phase('Play pressed'); const stopWatching = watchPlay();
+    try { const r = await target.Play(id); phase('Play started'); return r; }
+    catch (error) { phase('Play failed before the guest started', true); throw error; }
+    finally { if(attempt===playAttempt)playPending=false; stopWatching(); }
+  } : target[key] });
   globalThis.nxi.api = playApi;
   const mobile = startMobile(playApi);
   startInput(api, document.getElementById('game'));
@@ -428,6 +468,7 @@ try {
   const gpu = new GpuPresentation({ canvas, memory: globalThis.nxiWasmMemory, address: ringAddress, timeoutMs: 30000,
     workerUrl: new URL('./nxi-gpu-worker.js', import.meta.url), readback: new URLSearchParams(location.search).get('gpu') === 'readback' });
   globalThis.nxiReadGpuMemory = () => gpu.memorySnapshot();
+  globalThis.nxiReadGpuRing = () => gpu.ringSnapshot();
   if (navigator.gpu && canvas.transferControlToOffscreen && new URLSearchParams(location.search).get('gpu') !== '0')
     await gpu.start();
   jitRestore = restoreJitCache(api).then(n => { if (n) console.log('NXI jit cache restored: ' + (n / 1048576).toFixed(1) + ' MB'); return n; })

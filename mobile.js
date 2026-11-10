@@ -1,3 +1,4 @@
+import { noteAppReload } from './diagnostics.js';
 import { themes } from './visual/themes.js';
 import { normalizeThemes, desktopThemeFile, resolvedTheme, patterns, patternImages, downloadJson } from './theme-preferences.js';
 import { mountMemoryPanel } from './memory-panel.js';
@@ -395,7 +396,7 @@ export function initializeMobileShell() {
   byId('mobile-play').onclick = () => runEntry(state.entries.find(entry => entry.id === state.selected));
   byId('mobile-more').onclick = () => { state.limit += 60; renderLibrary(); };
   byId('mobile-cancel').onclick = () => byId('cancel-import').click();
-  byId('mobile-retry').onclick = () => location.reload();
+  byId('mobile-retry').onclick = () => { noteAppReload('user-retry'); location.reload(); };
   byId('mobile-default-mode').onchange = event => { preferences.defaultMode = event.target.value; persist(); };
   byId('classic-mode').onclick = () => { if (byId('classic-mode').disabled || !state.api) return; document.body.classList.add('classic'); byId('setup-dialog').close(); };
   byId('classic-return').onclick = () => { document.body.classList.remove('classic'); void refresh(true); };

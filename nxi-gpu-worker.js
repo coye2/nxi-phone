@@ -397,6 +397,14 @@ function draw(r) {
   const count = r.u(), instances = r.u(), first = r.u(), baseVertex = r.i(), firstInstance = r.u();
   if (!program || program.failed || !program.stages.vertex) return skip(!program ? 'no program' : program.failed ? 'shader failed: ' + program.failed : 'no vertex stage');
   const depth = depthId ? view(depthId) : null;
+  const attachment = colors.find(c => c) ?? depth;
+  if (!attachment) return skip('no render target');
+  const [vx, vy, vw, vh] = vp, top = vh < 0 ? vy + vh : vy;
+  // Do not draw using the default full-target viewport when a guest viewport
+  // is empty or wholly clipped. The later WebGPU clamp must not invent pixels.
+  if (![vx, vy, vw, vh].every(Number.isFinite) || vw <= 0 || vh === 0 ||
+      vx >= attachment.width || top >= attachment.height ||
+      vx + vw <= 0 || top + Math.abs(vh) <= 0) return skip('empty viewport');
 
   // Vertex layout: one GPU buffer slot per shader input. Inputs with no attribute read zeros.
   const layoutsVb = [], slots = [];

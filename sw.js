@@ -1,5 +1,5 @@
 // Staging replaces BUILD with a content-derived version. Never mix running builds.
-const BUILD = 'ab023a3f21d1d835';
+const BUILD = '8ff1d3cd81dd9cef';
 const PREFIX = 'nxi-browser-launcher-';
 const CACHE = PREFIX + BUILD;
 const scope = new URL('./', self.location.href);
@@ -122,10 +122,15 @@ self.addEventListener('fetch', event => {
     const cache = await caches.open(CACHE);
     let response = await cache.match(request, { ignoreSearch: true });
     if (!response && request.mode === 'navigate') response = await cache.match(new URL('index.html', scope));
+    const pinnedAsset = !!response;
     // Cached app assets stay pinned to this build, even while an update downloads.
     response ??= await fetch(request);
     if (response.type === 'opaque' || response.status === 0) return response;
     const headers = new Headers(response.headers);
+    // A network manifest may describe a waiting update. Only cached bytes are
+    // evidence for the build currently serving this page's runtime assets.
+    headers.delete('X-NXI-Asset-Build');
+    if (pinnedAsset) headers.set('X-NXI-Asset-Build', BUILD);
     headers.set('Cross-Origin-Opener-Policy', 'same-origin');
     headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
     headers.set('Cross-Origin-Resource-Policy', 'same-origin');

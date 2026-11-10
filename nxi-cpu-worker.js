@@ -2,7 +2,7 @@
 // ARMeilleure front end. Imports the runtime's shared memory; talks to its guest
 // host thread only through the mailbox (see ARMeilleure WasmAbi).
 const STATE = 0, KIND = 4, HELPER = 8, MODLEN = 12, PC = 16, CTX = 24, MODPTR = 32, GEN = 40, MODHOT = 44;
-const IDLE = 0, RUN = 1, BUSY = 2, REQUEST = 3, REPLY = 4;
+const RUN = 1, BUSY = 2, REQUEST = 3, REPLY = 4;
 const KIND_EXIT = 1, KIND_TRANSLATE = 2, KIND_CALL = 3, KIND_FAULT = 4, KIND_TRANSLATE_HOT = 5;
 // Entries run this many times before their whole region is re-translated (tier 1).
 const HOT_THRESHOLD = 256;
@@ -134,8 +134,9 @@ function serve() {
       i32[(mbox + KIND) >> 2] = KIND_FAULT;
     }
     Atomics.store(i32, mbox >> 2, REQUEST);
-    // The host thread resets the state to IDLE before the next RUN.
-    waitFor(IDLE);
+    // The host acknowledges completion with IDLE, then may immediately reuse
+    // this mailbox for RUN. Wait for RUN at the top of the loop: requiring us
+    // to observe the transient IDLE can strand both threads on the next run.
   }
 }
 
