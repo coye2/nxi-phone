@@ -1,8 +1,8 @@
 {
   "sourceRepository": "coye2/NX-Infinity-Development",
-  "sourceCommit": "058f5268d4b78e64e184d4ffed69ee436b29ec0d",
-  "nativeSourceCommit": "539cc0078180eb75c08d37a5f9c6c3686644bc58",
-  "previousDeployment": "e52f00fa5e4e9a45d313837ceadfe31c6cf6b8da",
+  "sourceCommit": "6b0e4cf0021a11e55489ff79d653d0accb0692d3",
+  "nativeSourceCommit": "6b0e4cf0021a11e55489ff79d653d0accb0692d3",
+  "previousDeployment": "e0bd1738fbc9c986fda78bce1a28ebc510f93b23",
   "sdk": "10.0.100",
   "workload": "10.0.100",
   "configuration": "Release",
@@ -49,10 +49,11 @@
     "Distinguish native cleanup and content stream close boundaries",
     "Label graphics command counters as cumulative for their worker lifetime",
     "Expose background translation cache save stage without native diagnostic calls",
-    "Copy final native launch boundary before recording Play outcome"
+    "Copy final native launch boundary before recording Play outcome",
+    "Initialize each new CPU register and control context independently of recycled allocator contents"
   ],
   "nativeLoaderTestsPassed": 16,
-  "builtAt": "2026-11-10T04:49:09.7850575-05:00",
+  "builtAt": "2026-11-10T05:27:49.5078027-05:00",
   "launchStageChecksPassed": 33,
   "cpuDiagnosticChecksPassed": 28,
   "gpuReadinessChecksPassed": 7,
@@ -61,5 +62,6 @@
   "faultCleanupHelperChecksPassed": 8,
   "cpuCacheChecksPassed": 10,
   "incrementalCleanBase": "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-  "supervisorCallChecksPassed": 14
+  "supervisorCallChecksPassed": 14,
+  "nativeContextInitializationChecksPassed": 24
 }
