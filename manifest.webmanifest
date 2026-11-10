@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Mochi",
   "short_name": "Mochi",
-  "description": "Mochi on your phone. The Mochi Core runs on this device.",
+  "description": "Mochi — a Switch webulator. Powered by Web-Native Emulation (WNE), our name for emulation that runs on this device through web technologies, including the installed app.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

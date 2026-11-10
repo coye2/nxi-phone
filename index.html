@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#FDECF2">
   <title>Mochi</title>
+  <meta name="description" content="Mochi — a Switch webulator. Powered by Web-Native Emulation (WNE).">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -44,9 +45,9 @@
   <section id="mobile" class="home-shell" data-mode="home" aria-label="Mochi launcher">
     <header class="home-header">
       <div class="top">
-        <button class="brand" id="mobile-brand" aria-label="Mochi library">
+        <button class="brand" id="mobile-brand" aria-label="Mochi, a Switch webulator">
           <img class="mochi-art" draggable="false" src="icons/icon-192.png" width="36" height="36" alt="">
-          <span>Mochi<small id="mobile-mode-label">HOME</small></span>
+          <span>Mochi<small id="mochi-category">a Switch webulator</small><small id="mobile-mode-label">HOME</small></span>
         </button>
         <div class="top-actions">
           <time id="mobile-clock" aria-label="Current time"></time>
@@ -82,6 +83,7 @@
       <section id="mobile-detail" class="subpage" hidden aria-label="Game details"></section>
       <section id="mobile-settings" class="subpage" hidden aria-labelledby="mobile-settings-title">
         <div class="page-heading"><button class="back-button" data-back aria-label="Back to library">‹</button><h1 id="mobile-settings-title">Settings</h1></div>
+        <p class="page-intro" id="mochi-identity">Mochi — a Switch webulator. Powered by Web-Native Emulation (WNE), our name for emulation that runs on this device through web technologies, including the installed app.</p>
         <div class="settings-list">
           <label class="setting-row"><span><strong>Open in</strong><small>Your default launcher view</small></span><select id="mobile-default-mode"><option value="home">HOME</option><option value="desktop">Library</option></select></label>
           <button class="setting-row" data-page="themes"><span><strong>Appearance</strong><small id="mobile-theme-name">Mochi</small></span><span aria-hidden="true">›</span></button>

@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "a00ddd75fc0700fd4c75533c42835ec794568d8a",
-    "nativeSourceCommit":  "a00ddd75fc0700fd4c75533c42835ec794568d8a",
-    "previousDeployment":  "27e8281f065646083f0ef3c52df1c160b65a3eb8",
+    "sourceCommit":  "195275cc7643f8c3e670b16762d3a9e0b9adfada",
+    "nativeSourceCommit":  "195275cc7643f8c3e670b16762d3a9e0b9adfada",
+    "previousDeployment":  "1e6ff1e90dc9c7d08b7933fed36a0df7766f74ed",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -59,10 +59,13 @@
                     "Classify invalid ReadUInt64 range and page mapping after failure without guest addresses or altering the exception",
                     "Show Mochi branding, the supplied icon and mascot, and Base UI without changing storage keys or manifest identity",
                     "Replace the browser theme catalog with 94 pastel and AMOLED pastel presets while keeping every preset ID",
-                    "Record runtime setup, services, device, DRAM, GPU, Horizon, HID and renderer boundaries before native loader ownership"
+                    "Record runtime setup, services, device, DRAM, GPU, Horizon, HID and renderer boundaries before native loader ownership",
+                    "Use a 4-byte browser software page table so guest DRAM can stay 1536 MiB and the application pool is 1376 MiB",
+                    "Run browser GPU macros that miss the HLE table in the interpreter",
+                    "Reject saved CPU translations compiled for the 8-byte page table"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-10T12:40:27.0872177Z",
+    "builtAt":  "2026-11-10T13:54:50.3669485Z",
     "browserAndHleJavaScriptChecksPassed":  357,
     "launchJournalChecksPassed":  9,
     "mochiThemeChecksPassed":  94,
