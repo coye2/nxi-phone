@@ -203,13 +203,30 @@ try {
   // and the restore runs again ("A problem repeatedly occurred"). The marker catches that.
   const FIRMWARE_PENDING = 'nxi-firmware-restore-pending';
   let firmwareRestored = false, firmwareBlocked = false;
-  async function ensureFirmware() {
-    if (firmwareRestored || firmwareBlocked) return;
-    firmwareRestored = true; phase('restoring firmware for Play');
-    try { localStorage.setItem(FIRMWARE_PENDING, String(Date.now())); } catch {}
-    try { const version = await restoreFirmware(api, tell); if (version) document.getElementById('setup-message').textContent = `Firmware ${version} restored from this device.`; }
-    catch (error) { document.getElementById('setup-message').textContent = 'Saved firmware could not be restored. Open Setup and import the firmware again.'; }
-    finally { try { localStorage.removeItem(FIRMWARE_PENDING); } catch {} phase('firmware restore finished'); }
+  let firmwareRestorePending = null;
+  function ensureFirmware() {
+    // Every Play must await the same install. Starting a restore is not success:
+    // a second caller must not launch while InstallStoredFirmware is still working.
+    if (firmwareRestorePending) return firmwareRestorePending;
+    if (firmwareRestored || firmwareBlocked) return Promise.resolve();
+    firmwareRestorePending = (async () => {
+      phase('restoring firmware for Play');
+      try { localStorage.setItem(FIRMWARE_PENDING, String(Date.now())); } catch {}
+      try {
+        const version = await restoreFirmware(api, tell);
+        firmwareRestored = true;
+        if (version) document.getElementById('setup-message').textContent = `Firmware ${version} restored from this device.`;
+        phase('firmware restore finished');
+      } catch {
+        const message = 'Saved firmware could not be restored. Open Setup and import the firmware again.';
+        document.getElementById('setup-message').textContent = message;
+        phase('firmware restore failed');
+        // Do not continue into native Play with an unsuccessful restore, or expose
+        // native parser/storage exception text. A later attempt can retry.
+        throw new Error(message);
+      } finally { try { localStorage.removeItem(FIRMWARE_PENDING); } catch {} }
+    })().finally(() => { firmwareRestorePending = null; });
+    return firmwareRestorePending;
   }
   // After Play, log threads and runtime memory every 250 ms (one breadcrumb, updated in place):
   // if the phone kills the page, the last values before it died are in the diagnostics.
@@ -266,11 +283,11 @@ try {
     const restoredSetup = await restoreSetup(api);
     setupWarnings.push(...restoredSetup.failed.map(item => item.message));
   } catch (error) { setupWarnings.push(error.message); }
-  // A restore that never finished means the page was killed during it (iPhone memory).
+  // An unfinished marker can follow termination, navigation, or a manual close.
   try {
     if (localStorage.getItem(FIRMWARE_PENDING)) {
       firmwareBlocked = true; localStorage.removeItem(FIRMWARE_PENDING);
-      setupWarnings.push('Mochi closed while restoring your firmware last time, most likely because the phone ran out of memory. It was not restored this time, so homebrew still works. Open Setup and import the firmware again to retry.');
+      setupWarnings.push('The previous firmware restore did not finish. It was not restored this time, so homebrew still works. Open Setup and import the firmware again to retry.');
     }
   } catch {}
   startup.phase('library-restore');
@@ -561,3 +578,4 @@ try {
   reportMobileStatus(failure, { error: true });
   console.error(e);
 }
+

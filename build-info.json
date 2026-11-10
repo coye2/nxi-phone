@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "195275cc7643f8c3e670b16762d3a9e0b9adfada",
-    "nativeSourceCommit":  "195275cc7643f8c3e670b16762d3a9e0b9adfada",
-    "previousDeployment":  "1e6ff1e90dc9c7d08b7933fed36a0df7766f74ed",
+    "sourceCommit":  "b2ef2903ce6240c958fd5415a61b9ddb207c9e39",
+    "nativeSourceCommit":  "b2ef2903ce6240c958fd5415a61b9ddb207c9e39",
+    "previousDeployment":  "5a43535062eeb4dc666c8199b8ce9be26a413cce",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -60,13 +60,15 @@
                     "Show Mochi branding, the supplied icon and mascot, and Base UI without changing storage keys or manifest identity",
                     "Replace the browser theme catalog with 94 pastel and AMOLED pastel presets while keeping every preset ID",
                     "Record runtime setup, services, device, DRAM, GPU, Horizon, HID and renderer boundaries before native loader ownership",
-                    "Use a 4-byte browser software page table so guest DRAM can stay 1536 MiB and the application pool is 1376 MiB",
+                    "Use a zero-initialized two-level browser page table so guest DRAM stays 2048 MiB and the application pool is 1888 MiB",
+                    "Log a refused browser SetHeapSize with the requested size, capacity, and region",
+                    "Wait for firmware restore before every Play and keep a failed restore retryable",
                     "Run browser GPU macros that miss the HLE table in the interpreter",
-                    "Reject saved CPU translations compiled for the 8-byte page table"
+                    "Reject saved CPU translations compiled for the flat page table"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-10T13:54:50.3669485Z",
-    "browserAndHleJavaScriptChecksPassed":  357,
+    "builtAt":  "2026-11-10T15:03:44.3007763Z",
+    "browserAndHleJavaScriptChecksPassed":  362,
     "launchJournalChecksPassed":  9,
     "mochiThemeChecksPassed":  94,
     "desktopThemeChecksPassed":  94

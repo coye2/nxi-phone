@@ -3,7 +3,8 @@ const stages = [null, 'native.partition.open', 'native.content.select', 'native.
   'native.sections.open', 'native.metadata.load', 'native.nso.header', 'native.nso.allocate',
   'native.nso.sections', 'native.process.initialize', 'native.runtime.setup', 'native.runtime.services',
   'native.runtime.config', 'native.runtime.device', 'native.runtime.dram', 'native.runtime.gpu',
-  'native.runtime.horizon', 'native.runtime.hid', 'native.runtime.service-start', 'native.runtime.renderer'];
+  'native.runtime.horizon', 'native.runtime.hid', 'native.runtime.service-start', 'native.runtime.renderer',
+  'native.runtime.shared-services', 'native.runtime.content-index'];
 const bytes = 2112, capacity = 64;
 const safe = n => Number.isSafeInteger(n) && n >= 0;
 
@@ -69,3 +70,4 @@ export function summarizeLoaderJournal(value) {
     sampleAgeMs: Math.max(0, Date.now() - value.sampledAt),
     historyMayBeIncomplete: value.lost > 0 || value.events.length === capacity };
 }
+
