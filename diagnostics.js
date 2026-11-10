@@ -31,6 +31,27 @@ export function phase(name) {
 }
 phase('page loaded');
 
+// Keep at most one native status call pending while the loader is busy.
+// Loader transitions get their own breadcrumb so long titles cannot hide them.
+export function createPlayStatusObserver(api, record = phase) {
+  let pending = false, disposed = false, status = '', lastStage = '';
+  return {
+    get status() { return status; },
+    poll() {
+      if (pending || disposed) return;
+      pending = true;
+      Promise.resolve().then(() => api.Status()).then(json => {
+        if (disposed) return;
+        const value = JSON.parse(json);
+        status = String(value.Status ?? '').slice(0, 120);
+        const stage = typeof value.loaderStage === 'string' ? value.loaderStage.slice(0, 110) : '';
+        if (stage && stage !== lastStage) { lastStage = stage; record('loader: ' + stage); }
+      }).catch(() => {}).finally(() => { pending = false; });
+    },
+    dispose() { disposed = true; },
+  };
+}
+
 export function createStartupDiagnostics(now = () => performance.now()) {
   const started = now();
   let phase = 'shell', status = 'starting';

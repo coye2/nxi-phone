@@ -8,7 +8,7 @@ import { restoreJitCache, keepJitCache } from './jit-cache.js';
 import { restoreSetup, saveKeys, saveFirmware, restoreFirmware } from './setup.js';
 import { startAudio } from './audio.js';
 import { startSessionView } from './session-view.js';
-import { exportDiagnostics, phase, createStartupDiagnostics } from './diagnostics.js';
+import { exportDiagnostics, phase, createStartupDiagnostics, createPlayStatusObserver } from './diagnostics.js';
 import { configureRuntimeDelivery } from './runtime-delivery.js';
 
 const message = document.getElementById('message');
@@ -175,15 +175,15 @@ try {
   // After Play, log threads and runtime memory every 250 ms (one breadcrumb, updated in place):
   // if the phone kills the page, the last values before it died are in the diagnostics.
   const pthreads = () => { try { return globalThis.getDotnetRuntime(0).Module.PThread; } catch { return null; } };
-  let playWatch = 0, lastStatus = '';
+  let playWatch = 0, playObserver;
   const watchPlay = () => {
-    clearInterval(playWatch); const started = Date.now();
+    clearInterval(playWatch); playObserver?.dispose(); const started = Date.now();
+    const observer = playObserver = createPlayStatusObserver(api);
     playWatch = setInterval(() => {
       const P = pthreads(), seconds = (Date.now() - started) / 1000;
-      Promise.resolve().then(() => api.Status()).then(t => { lastStatus = JSON.parse(t).Status ?? ''; }).catch(() => {});
-      const status = lastStatus;
-      phase(`playing ${seconds.toFixed(1)} s: threads ${P?.runningWorkers?.length ?? '?'} (+${P?.unusedWorkers?.length ?? '?'} idle), runtime memory ${Math.round((globalThis.nxiWasmMemory?.buffer.byteLength ?? 0) / 1048576)} MB, ${status}`);
-      if (seconds > 60) clearInterval(playWatch);
+      observer.poll();
+      phase(`playing ${seconds.toFixed(1)} s: threads ${P?.runningWorkers?.length ?? '?'} (+${P?.unusedWorkers?.length ?? '?'} idle), linear buffer ${Math.round((globalThis.nxiWasmMemory?.buffer.byteLength ?? 0) / 1048576)} MiB, ${observer.status}`);
+      if (seconds > 60) { clearInterval(playWatch); observer.dispose(); }
     }, 250);
   };
   const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => { await ensureFirmware(); phase('Play pressed'); watchPlay(); const r = await target.Play(id); phase('Play started'); return r; } : target[key] });
