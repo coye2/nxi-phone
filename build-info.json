@@ -1,15 +1,14 @@
 {
   "sourceRepository": "coye2/NX-Infinity-Development",
-  "sourceCommit": "6b0e4cf0021a11e55489ff79d653d0accb0692d3",
-  "nativeSourceCommit": "6b0e4cf0021a11e55489ff79d653d0accb0692d3",
-  "previousDeployment": "e0bd1738fbc9c986fda78bce1a28ebc510f93b23",
+  "sourceCommit": "abc6a29fb9b3eac3e33e8eb57f7c3cebeafd9e7e",
+  "nativeSourceCommit": "abc6a29fb9b3eac3e33e8eb57f7c3cebeafd9e7e",
+  "previousDeployment": "ae305b5696e4ce63ce415b60c60f866430db18cb",
   "sdk": "10.0.100",
   "workload": "10.0.100",
   "configuration": "Release",
   "fullAot": true,
   "stripILAfterAot": true,
   "usesProjectInterpretationExceptions": true,
-  "sourceTestsPassed": 338,
   "desktopThemes": 94,
   "desktopCoreSettings": 23,
   "browserSupportedSettings": 10,
@@ -50,10 +49,13 @@
     "Label graphics command counters as cumulative for their worker lifetime",
     "Expose background translation cache save stage without native diagnostic calls",
     "Copy final native launch boundary before recording Play outcome",
-    "Initialize each new CPU register and control context independently of recycled allocator contents"
+    "Initialize each new CPU register and control context independently of recycled allocator contents",
+    "Serialize CPU translations into one exact-size buffer",
+    "Transfer CPU cache bytes directly without base64 and bound legacy decode buffers",
+    "Capture post-launch cleanup from the shared stage slot during diagnostic export",
+    "Retain bounded native GPU exception type and phase after cleanup"
   ],
   "nativeLoaderTestsPassed": 16,
-  "builtAt": "2026-11-10T05:27:49.5078027-05:00",
   "launchStageChecksPassed": 33,
   "cpuDiagnosticChecksPassed": 28,
   "gpuReadinessChecksPassed": 7,
@@ -63,5 +65,9 @@
   "cpuCacheChecksPassed": 10,
   "incrementalCleanBase": "44416f1318a2fb01e7de6082e3dc5f24f3691117",
   "supervisorCallChecksPassed": 14,
-  "nativeContextInitializationChecksPassed": 24
+  "nativeContextInitializationChecksPassed": 24,
+  "browserAppJavaScriptChecksPassed": 284,
+  "cacheExportChecksPassed": 13,
+  "gpuFailureChecksPassed": 8,
+  "builtAt": "2026-11-10T11:12:49.8539755Z"
 }

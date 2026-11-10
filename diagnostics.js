@@ -249,6 +249,9 @@ async function bounded(operation, timeoutMs) {
 }
 
 export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000 } = {}) {
+  // Play's observer stops once the first frame arrives. Read the shared slot
+  // again on export so later cleanup is visible even if all native calls hang.
+  try { globalThis.nxiDrainBoundary?.(); } catch { /* optional shared observation */ }
   const startupSnapshot = startup?.snapshot() ?? null;
   const results = await Promise.allSettled([
     bounded(() => observeNative(api, 'Status'), timeoutMs),
@@ -256,6 +259,7 @@ export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000
     bounded(() => typeof api?.ExecutionDiagnostics === 'function' ? observeNative(api, 'ExecutionDiagnostics') : null, timeoutMs),
     bounded(() => globalThis.nxiReadGpuMemory?.() ?? null, timeoutMs),
   ]);
+  try { globalThis.nxiDrainBoundary?.(); } catch { /* native waits may outlast cleanup */ }
   const report = {
     format: 'nxi-mobile-diagnostics', version: 1, capturedAt: new Date().toISOString(),
     browser: { userAgent: navigator.userAgent, secureContext: globalThis.isSecureContext,

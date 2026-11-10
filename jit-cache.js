@@ -2,6 +2,20 @@
 // Restored before the first game runs; saved every minute while playing and when hidden.
 const FILE = 'nxi-jit-cache.bin';
 
+// Compatibility with earlier native packages: decode directly into the result
+// with a bounded temporary string, never an iterable list of every character.
+export function decodeLegacyCache(encoded) {
+  const padding = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0;
+  const bytes = new Uint8Array(encoded.length / 4 * 3 - padding);
+  const chunk = 64 * 1024; // Multiple of four, so base64 groups stay intact.
+  let offset = 0;
+  for (let start = 0; start < encoded.length; start += chunk) {
+    const part = atob(encoded.slice(start, start + chunk));
+    for (let i = 0; i < part.length; i++) bytes[offset++] = part.charCodeAt(i);
+  }
+  return bytes;
+}
+
 async function handle(create) {
   const root = await navigator.storage?.getDirectory?.();
   return root ? root.getFileHandle(FILE, { create }) : null;
@@ -26,9 +40,15 @@ export function keepJitCache(api) {
       const count = await api.JitCacheCount();
       if (count === lastCount) { stage = 'unchanged'; return; }
       stage = 'native-export';
-      const encoded = await api.JitCacheExport();
-      stage = 'decode';
-      const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+      let bytes;
+      if (typeof api.JitCacheExportBytes === 'function') {
+        bytes = await api.JitCacheExportBytes();
+      } else {
+        const encoded = await api.JitCacheExport();
+        stage = 'decode';
+        bytes = decodeLegacyCache(encoded);
+      }
+      if (!(bytes instanceof Uint8Array)) throw new Error('Invalid CPU cache export.');
       stage = 'storage-open';
       const h = await handle(true); if (!h) { stage = 'storage-unavailable'; return; }
       stage = 'storage-write';
