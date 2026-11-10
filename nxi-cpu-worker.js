@@ -44,7 +44,7 @@ function refresh() {
 }
 
 function waitFor(expected) {
-  const index = mbox >> 2;
+  const index = mbox >>> 2;
   let spins = 0;
   for (;;) {
     const value = Atomics.load(i32, index);
@@ -55,19 +55,19 @@ function waitFor(expected) {
 
 function request(kind) {
   refresh();
-  i32[(mbox + KIND) >> 2] = kind;
-  Atomics.store(i32, mbox >> 2, REQUEST);
+  i32[(mbox + KIND) >>> 2] = kind;
+  Atomics.store(i32, mbox >>> 2, REQUEST);
   waitFor(REPLY);
   refresh();
-  Atomics.store(i32, mbox >> 2, BUSY);
-  const gen = i32[(mbox + GEN) >> 2];
+  Atomics.store(i32, mbox >>> 2, BUSY);
+  const gen = i32[(mbox + GEN) >>> 2];
   if (gen !== generation) { cache.clear(); generation = gen; stats.clears++; }
 }
 
 function rpc(id) {
   const t = performance.now();
   refresh();
-  i32[(mbox + HELPER) >> 2] = id;
+  i32[(mbox + HELPER) >>> 2] = id;
   request(KIND_CALL);
   stats.rpcs++; stats.rpcMs += performance.now() - t;
 }
@@ -80,7 +80,7 @@ function compile(pc, kind) {
   request(kind);
   const t1 = performance.now();
   const ptr = view.getUint32(mbox + MODPTR, true);
-  const len = i32[(mbox + MODLEN) >> 2];
+  const len = i32[(mbox + MODLEN) >>> 2];
   const bytes = new Uint8Array(memory.buffer, ptr, len).slice();
   const fn = new WebAssembly.Instance(new WebAssembly.Module(bytes), imports()).exports.run;
   stats.compiles++; stats.translateWaitMs += t1 - t0; stats.compileMs += performance.now() - t1;
@@ -94,7 +94,7 @@ function lookup(pc) {
     const fn = compile(pc, KIND_TRANSLATE);
     // A translate request can bump the generation (cache cleared), so insert after it.
     // The host may answer with an existing region (MODHOT): it is already tier 1.
-    e = { fn, n: i32[(mbox + MODHOT) >> 2] ? -1 : 0 };
+    e = { fn, n: i32[(mbox + MODHOT) >>> 2] ? -1 : 0 };
     remember(pc, e);
     return fn;
   }
@@ -114,8 +114,8 @@ function serve() {
   for (;;) {
     refresh();
     waitFor(RUN);
-    Atomics.store(i32, mbox >> 2, BUSY);
-    const gen = i32[(mbox + GEN) >> 2];
+    Atomics.store(i32, mbox >>> 2, BUSY);
+    const gen = i32[(mbox + GEN) >>> 2];
     if (gen !== generation) { cache.clear(); generation = gen; }
     const ctx = view.getBigInt64(mbox + CTX, true);
     let pc = view.getBigUint64(mbox + PC, true);
@@ -126,14 +126,14 @@ function serve() {
         if ((stats.blocks & 1023) === 0) report();
         refresh();
       }
-      i32[(mbox + KIND) >> 2] = KIND_EXIT;
+      i32[(mbox + KIND) >>> 2] = KIND_EXIT;
     } catch (error) {
       console.error(`NXI CPU worker fault near 0x${pc.toString(16)}: ${error && error.stack || error}`);
       refresh();
       view.setBigUint64(mbox + PC, pc, true);
-      i32[(mbox + KIND) >> 2] = KIND_FAULT;
+      i32[(mbox + KIND) >>> 2] = KIND_FAULT;
     }
-    Atomics.store(i32, mbox >> 2, REQUEST);
+    Atomics.store(i32, mbox >>> 2, REQUEST);
     // The host acknowledges completion with IDLE, then may immediately reuse
     // this mailbox for RUN. Wait for RUN at the top of the loop: requiring us
     // to observe the transient IDLE can strand both threads on the next run.
@@ -142,8 +142,9 @@ function serve() {
 
 self.onmessage = ({ data }) => {
   memory = data.memory;
-  mbox = data.mailbox;
+  mbox = data.mailbox >>> 0;
   mboxGlobal = new WebAssembly.Global({ value: 'i32', mutable: false }, mbox);
   refresh();
   serve();
 };
+

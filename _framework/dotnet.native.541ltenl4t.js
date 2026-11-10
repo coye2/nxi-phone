@@ -350,7 +350,7 @@ function updateMemoryViews() {
  Module["HEAPU64"] = HEAPU64 = new BigUint64Array(b);
 }
 
-var INITIAL_MEMORY = Module["INITIAL_MEMORY"] || 46333952;
+var INITIAL_MEMORY = Module["INITIAL_MEMORY"] || 46399488;
 
 if (ENVIRONMENT_IS_PTHREAD) {
  wasmMemory = Module["wasmMemory"];

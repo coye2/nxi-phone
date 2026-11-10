@@ -53,21 +53,30 @@ CapturedMemory.prototype = NativeMemory.prototype;
 WebAssembly.Memory = CapturedMemory;
 const cpuWorkers = [];
 const cpuMailboxRecords = [];
-let playAttempt = 0, playPending = false;
+let playAttempt = 0, playPending = false, cpuWorkersCreated = 0, cpuWorkersRetired = 0;
+globalThis.nxiRetireCpuWorkers = () => {
+  while (cpuWorkers.length) {
+    cpuWorkers[0].terminate();
+    cpuWorkers.shift(); cpuWorkersRetired++;
+  }
+  cpuMailboxRecords.length = 0;
+};
 globalThis.nxiReadCpuMailboxes = () => ({
   ...readCpuMailboxDiagnostics(globalThis.nxiWasmMemory, cpuMailboxRecords, {totalWorkersCreated:cpuWorkers.length}),
+  totalWorkersCreated:cpuWorkersCreated, activeWorkers:cpuWorkers.length, retiredWorkers:cpuWorkersRetired,
   capturePlayAttempt:playAttempt, nativePlayPromisePending:playPending
 });
 globalThis.nxiSpawnCpuWorker = mailbox => {
   const worker = new Worker(new URL('./nxi-cpu-worker.js', import.meta.url), { name: 'NXI CPU' });
   cpuWorkers.push(worker);
-  cpuMailboxRecords.push({address:mailbox,workerId:cpuWorkers.length,birthPlayAttempt:playAttempt});
+  cpuMailboxRecords.push({address:mailbox,workerId:++cpuWorkersCreated,birthPlayAttempt:playAttempt});
   if(cpuMailboxRecords.length>MAX_CPU_MAILBOX_SAMPLES)cpuMailboxRecords.shift();
   worker.onerror = e => tell('CPU worker failed: ' + e.message);
   worker.postMessage({ memory: globalThis.nxiWasmMemory, mailbox });
 };
 let ioWorker, storageReady;
-globalThis.nxiWorkerCounters = () => ({ cpuWorkersCreated: cpuWorkers.length, storageWorkerCreated: ioWorker ? 1 : 0 });
+globalThis.nxiWorkerCounters = () => ({ cpuWorkersCreated: cpuWorkers.length, cpuWorkersActive: cpuWorkers.length,
+  totalCpuWorkersCreated:cpuWorkersCreated, cpuWorkersRetired, storageWorkerCreated: ioWorker ? 1 : 0 });
 globalThis.nxiStartIoWorker = mailbox => {
   storageReady = new Promise((resolve, reject) => {
     const fail = message => {
@@ -509,7 +518,7 @@ try {
     sessionView.stopping(true);
     let gameStopped = false;
     try {
-      await api.Stop(); cpuWorkers.splice(0).forEach(worker => worker.terminate());
+      await api.Stop();
       gameStopped = true;
       if (!await saveDeviceState(api, { force: true, report: tell }))
         throw new Error('Device data is still busy. Keep NXI open and try saving again.');

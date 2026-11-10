@@ -10,6 +10,10 @@ let device, context, readback = false, readbackBusy = false, errors = 0, canvasF
 let started = false, stopped = false;
 let capabilities = null;
 const shaderHealth = { attempted: 0, failed: 0, firstFailure: null };
+const commandNames = Object.fromEntries(Object.entries(OP).map(([name, op]) => [op, name]));
+const commandCounts = Object.fromEntries(Object.keys(OP).filter(name => name !== 'Wrap').map(name => [name, 0]));
+commandCounts.Unknown = 0;
+let receivedCommands = 0, lastCommand = null;
 // Safe metadata only: no shader source, game bytes or exception text in snapshots.
 function shaderFailure(program, id, stage, phase) {
   if (program.failed) return;
@@ -38,7 +42,10 @@ struct V { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 self.onmessage = async ({ data }) => {
   if (data.type === 'memory-snapshot') {
     self.postMessage({ type: 'memory-snapshot', requestId: data.requestId, snapshot: {
-      at: new Date().toISOString(), capabilities, shaderHealth: { ...shaderHealth }, buffers: buffers.size,
+      at: new Date().toISOString(), capabilities, shaderHealth: { ...shaderHealth },
+      commandHealth: { received: receivedCommands, last: lastCommand, counts: { ...commandCounts },
+        meaning: 'Commands observed after ring-envelope validation, before dispatch; includes rejected or skipped work. Not GPU completion or frame correctness.' },
+      buffers: buffers.size,
       bufferAllocationBytes: [...buffers.values()].reduce((sum, entry) => sum + entry.buffer.size, 0),
       ownedTextures: [...textures.values()].filter(entry => entry.owner).length,
       textureViews: [...textures.values()].filter(entry => !entry.owner).length,
@@ -148,6 +155,9 @@ async function pump() {
       const published = write > read ? write - read : capacity - read;
       if (total < 8 || total % 4 || total > capacity / 2 || total > published || read + total > capacity)
         throw new Error('Invalid GPU command length: ' + total);
+      // Fixed opcode names only: never retain guest payloads, addresses or arbitrary keys.
+      lastCommand = commandNames[op] ?? 'Unknown';
+      receivedCommands++; commandCounts[lastCommand]++;
       run(op, read + 8, total - 8);
       read += total; Atomics.store(head, 1, read); work++;
     }

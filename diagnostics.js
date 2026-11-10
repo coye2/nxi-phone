@@ -4,8 +4,15 @@
 // "A problem repeatedly occurred"), nothing else survives, so the next report shows where it died.
 // Earlier runs are kept too (newest first), so an export after reopening still shows the attempt.
 const TRAIL = 'nxi-phase-trail', PREVIOUS = 'nxi-previous-run', EARLIER = 'nxi-earlier-runs';
+const LAST_PLAY = 'nxi-last-play-trail';
 const started = Date.now();
 let previousRun = null, earlierRuns = [], trail = [];
+let lastPlay = null, recordingPlay = false;
+try {
+  const saved = JSON.parse(localStorage.getItem(LAST_PLAY) || 'null');
+  if (saved && typeof saved.startedAt === 'string' && Array.isArray(saved.trail))
+    lastPlay = { startedAt: saved.startedAt, buildIdentity: 'not-captured', trail: saved.trail.slice(-80) };
+} catch {}
 try {
   const last = JSON.parse(localStorage.getItem(TRAIL) || '[]');
   earlierRuns = JSON.parse(localStorage.getItem(EARLIER) || '[]');
@@ -24,6 +31,10 @@ const NAV_TYPES = new Set(['navigate', 'reload', 'back_forward', 'prerender']);
 
 export function phase(name, distinct = false) {
   const entry = { step: String(name).slice(0, 180), at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 100) / 10 };
+  if (entry.step === 'Play pressed') {
+    recordingPlay = true;
+    lastPlay = { startedAt: entry.at, buildIdentity: 'not-captured', trail: [] };
+  }
   // Progress lines ("· 4%", "1:05") update in place instead of pushing everything else out.
   // Launch boundaries stay distinct: their counters change, and collapsing them hides the last completed stage.
   const shape = text => text.replace(/\d+/g, '#');
@@ -34,6 +45,13 @@ export function phase(name, distinct = false) {
   } else trail.push(entry);
   if (trail.length > 80) trail.splice(0, trail.length - 80);
   try { localStorage.setItem(TRAIL, JSON.stringify(trail)); } catch {}
+  // Startup-only manual reopens must not evict the last actual Play attempt.
+  // Its build is deliberately unknown; never assign the newly opened page's build.
+  if (recordingPlay) {
+    lastPlay.trail = trail.slice(-80);
+    try { localStorage.setItem(LAST_PLAY, JSON.stringify(lastPlay)); } catch {}
+    if (entry.step === 'Play started' || entry.step === 'Play failed before the guest started') recordingPlay = false;
+  }
 }
 
 // Navigation Timing classifies the load. It does not say which code requested it.
@@ -133,6 +151,19 @@ try {
 
 // Keep at most one native status call pending while the loader is busy.
 // Loader transitions get their own breadcrumb so long titles cannot hide them.
+const nativeObservations = new WeakMap();
+function observeNative(api, method) {
+  if (!api || typeof api[method] !== 'function') return Promise.reject(new Error('Native observation unavailable'));
+  let pending = nativeObservations.get(api);
+  if (!pending) nativeObservations.set(api, pending = new Map());
+  if (pending.has(method)) return pending.get(method);
+  const observation = Promise.resolve().then(() => api[method]());
+  pending.set(method, observation);
+  const release = () => { if (pending.get(method) === observation) pending.delete(method); };
+  observation.then(release, release);
+  return observation;
+}
+
 export function createPlayStatusObserver(api, record = phase, now = () => performance.now()) {
   let pending = false, disposed = false, status = '', lastStage = '';
   let pendingAt = null, sampledAt = null, lastOperation = '', lastHealth = -1;
@@ -148,7 +179,7 @@ export function createPlayStatusObserver(api, record = phase, now = () => perfor
         return;
       }
       pending = true; pendingAt = now(); lastHealth = -1;
-      Promise.resolve().then(() => api.Status()).then(json => {
+      observeNative(api, 'Status').then(json => {
         if (disposed) return;
         const value = JSON.parse(json);
         sampledAt = now();
@@ -199,9 +230,9 @@ async function bounded(operation, timeoutMs) {
 export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000 } = {}) {
   const startupSnapshot = startup?.snapshot() ?? null;
   const results = await Promise.allSettled([
-    bounded(() => api.Status(), timeoutMs),
-    bounded(() => api.Diagnostics(), timeoutMs),
-    bounded(() => api?.ExecutionDiagnostics?.() ?? null, timeoutMs),
+    bounded(() => observeNative(api, 'Status'), timeoutMs),
+    bounded(() => observeNative(api, 'Diagnostics'), timeoutMs),
+    bounded(() => typeof api?.ExecutionDiagnostics === 'function' ? observeNative(api, 'ExecutionDiagnostics') : null, timeoutMs),
     bounded(() => globalThis.nxiReadGpuMemory?.() ?? null, timeoutMs),
   ]);
   const report = {
@@ -213,7 +244,7 @@ export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000
       standalone: globalThis.matchMedia?.('(display-mode: standalone)').matches ?? false },
     device: { memoryGB: navigator.deviceMemory ?? null, cores: navigator.hardwareConcurrency ?? null,
       screen: globalThis.screen ? [screen.width, screen.height, globalThis.devicePixelRatio] : null },
-    thisRun: trail.slice(), previousRun, earlierRuns,
+    thisRun: trail.slice(), previousRun, earlierRuns, lastPlay,
     startup: startupSnapshot,
     session: null, core: null, execution: null, cpuMailboxes: null, gpuRing: null, gpuWorker: null,
     errors: [], offlineBuild: null, availableOfflineBuild: null,
