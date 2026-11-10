@@ -27,10 +27,10 @@ function importFailure(error, phase, signal, cancellable) {
   const message = error?.name === 'QuotaExceededError'
     ? 'Not enough device storage for this game. Free space and try again.'
     : phase === 'reading-file'
-      ? 'NXI could not read the selected file. Make sure it is fully downloaded and available on this device, then choose it again.'
+      ? 'Mochi could not read the selected file. Make sure it is fully downloaded and available on this device, then choose it again.'
       : phase === 'checking-game'
-        ? 'The game file was copied, but checking it was interrupted. Keep NXI open and try importing it again.'
-        : 'NXI could not save the game to device storage. Check free space and browser storage access, keep NXI open, then try again.';
+        ? 'The game file was copied, but checking it was interrupted. Keep Mochi open and try importing it again.'
+        : 'Mochi could not save the game to device storage. Check free space and browser storage access, keep Mochi open, then try again.';
   return Object.assign(new Error(message, { cause: error }), { code: phase === 'reading-file' ? 'import_read_failed' : phase === 'checking-game' ? 'import_check_failed' : 'import_storage_failed', phase, importFailure: true });
 }
 // Copy in import-worker.js (sync access handle, 8 MB chunks). Resolves false where the browser

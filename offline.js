@@ -4,7 +4,7 @@ const failureCodes = new Set(['network-failed', 'unexpected-redirect', 'asset-un
 function failureText(detail) {
   return detail.asset ? detail.message + ' File: ' + detail.asset : detail.message;
 }
-function activationFailure(worker, registration, fallback = 'The NXI offline worker could not install. Reload to retry.') {
+function activationFailure(worker, registration, fallback = 'The Mochi offline worker could not install. Reload to retry.') {
   const detail = workerFailures.get(worker) || registrationFailures.get(registration);
   return Object.assign(new Error(detail ? failureText(detail) : fallback), {
     code: detail?.code || 'offline-install-failed', asset: detail?.asset || null, build: detail?.build || null
@@ -35,7 +35,7 @@ export async function registerOffline(report) {
     const changed = () => {
       if (worker.state === 'installing') report('Preparing this app for offline use… Keep it open until this finishes.');
       if (worker.state === 'installed') report(registration.active
-        ? 'Update downloaded. Stop your game, close all NXI tabs, then reopen to use it.'
+        ? 'Update downloaded. Stop your game, close all Mochi tabs, then reopen to use it.'
         : 'Offline download complete. Finishing installation…');
       if (worker.state === 'activated') report('This app is available offline on this device.');
       if (worker.state === 'redundant') report((registration.active ? 'The update could not be installed; your current build is still available. ' : '') + activationFailure(worker, registration).message);
@@ -58,7 +58,7 @@ export function waitForOfflineActivation(registration) {
   const active = registration.active;
   const worker = active && active.state !== 'redundant'
     ? active : registration.installing || registration.waiting;
-  if (!worker) return Promise.reject(activationFailure(null, registration, 'The NXI offline worker is unavailable. Reload to retry.'));
+  if (!worker) return Promise.reject(activationFailure(null, registration, 'The Mochi offline worker is unavailable. Reload to retry.'));
   return new Promise((resolve, reject) => {
     const changed = () => {
       if (worker.state !== 'activated' && worker.state !== 'redundant') return;

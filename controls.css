@@ -13,18 +13,18 @@
  #game{padding-top:env(safe-area-inset-top)}
  #screen{display:block;height:calc(100% - 390px - env(safe-area-inset-bottom));width:100%;object-fit:contain}
  #touchpad{display:block;position:absolute;inset:auto 0 calc(60px + env(safe-area-inset-bottom));height:330px;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none;z-index:2}
- #touchpad button{pointer-events:auto;position:absolute;display:grid;place-items:center;width:44px;height:44px;margin:0;padding:0;border-radius:50%;background:#26352de6;border:1px solid #718b7c99;color:#fff;font:600 16px system-ui;touch-action:none;-webkit-tap-highlight-color:transparent}
- #touchpad .held{background-color:#47745be6;border-color:#a9e6bf}
+ #touchpad button{pointer-events:auto;position:absolute;display:grid;place-items:center;width:44px;height:44px;margin:0;padding:0;border-radius:50%;background:#351225e6;border:1px solid #B7809999;color:#fff;font:600 16px system-ui;touch-action:none;-webkit-tap-highlight-color:transparent}
+ #touchpad .held{background-color:#7B0E3Fe6;border-color:#FCB9D7}
  #touchpad .cluster{position:absolute;width:132px;height:132px}
  #touchpad .cluster.left{left:max(14px,env(safe-area-inset-left));bottom:6px}
  #touchpad .cluster.right{right:max(14px,env(safe-area-inset-right));bottom:144px}
  #touchpad .cluster .u{left:44px;top:0}#touchpad .cluster .l{left:0;top:44px}#touchpad .cluster .r{left:88px;top:44px}#touchpad .cluster .d{left:44px;top:88px}
- #touchpad .analog{position:absolute;width:112px;height:112px;pointer-events:auto;touch-action:none;border-radius:50%;background:#26352d99;border:1px solid #718b7c99}
+ #touchpad .analog{position:absolute;width:112px;height:112px;pointer-events:auto;touch-action:none;border-radius:50%;background:#35122599;border:1px solid #B7809999}
  #touchpad .analog.left{left:max(24px,env(safe-area-inset-left));bottom:154px}
  #touchpad .analog.right{right:max(24px,env(safe-area-inset-right));bottom:16px}
- .stick-nub{position:absolute;inset:30px;background:#91b59e77;border:1px solid #a9c9b499;border-radius:50%;pointer-events:none}
- .stick-label{position:absolute;inset:0;display:grid;place-items:center;color:#cce1d3;font:600 14px system-ui;pointer-events:none}
- #touchpad .stick-click{right:-12px;top:-12px;font-size:12px;background:#26352d}
+ .stick-nub{position:absolute;inset:30px;background:#B7809977;border:1px solid #FAD8E699;border-radius:50%;pointer-events:none}
+ .stick-label{position:absolute;inset:0;display:grid;place-items:center;color:#FDECF2;font:600 14px system-ui;pointer-events:none}
+ #touchpad .stick-click{right:-12px;top:-12px;font-size:12px;background:#351225}
  #touchpad .shoulders{position:absolute;top:0;left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
  #touchpad .shoulders button{position:static;width:100%;height:44px;border-radius:12px}
 }
@@ -39,5 +39,5 @@
  #touchpad .analog.right{right:164px;bottom:24px}
  #touchpad .cluster.left{left:160px;bottom:12px}
  #touchpad .cluster.right{right:max(14px,env(safe-area-inset-right));bottom:12px}
- #touchpad button{background:#26352daa}#touchpad .analog{background:#26352d66}
+ #touchpad button{background:#351225aa}#touchpad .analog{background:#35122566}
 }

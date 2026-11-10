@@ -91,7 +91,7 @@ export function simulateMemory(raw = {}) {
     frame: { cpuMs, gpuMs: p.gpuMs, frameMs, targetMs: 1000 / p.targetFps, estimatedFps: Math.min(p.targetFps, frameMs > 0 ? 1000 / frameMs : p.targetFps), bottleneck: cpuMs >= p.gpuMs ? 'CPU / translation' : 'GPU' },
     sources: memorySources,
     assumptions: [
-      'All category sizes are scenario estimates, not measurements. Defaults are planning examples based on the NXI November 9 worker investigation and must be calibrated per device/build.',
+      'All category sizes are scenario estimates, not measurements. Defaults are planning examples based on the Mochi November 9 worker investigation and must be calibrated per device/build.',
       'Shared guest RAM, stacks and audio rings are counted once, inside linear memory. Compiled code is shared once; function/table metadata is modeled per instance including the main instance.',
       'Linear address capacity is separate from estimated resident memory and is never added to resident totals. OPFS/disk usage is excluded.',
       'GPU memory may be accounted differently by the OS, especially on unified-memory phones. Browser measurements are displayed separately and never added to the model.',

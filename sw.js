@@ -1,5 +1,5 @@
 // Staging replaces BUILD with a content-derived version. Never mix running builds.
-const BUILD = '1cc6774351041127';
+const BUILD = 'c6650c3102970e53';
 const PREFIX = 'nxi-browser-launcher-';
 const CACHE = PREFIX + BUILD;
 const scope = new URL('./', self.location.href);
@@ -17,8 +17,8 @@ function installFailure(code, message, url) {
 function storageFailure(error, url) {
   if (error?.nxiOfflineFailure) return error;
   return error?.name === 'QuotaExceededError'
-    ? installFailure('storage-full', 'Not enough device storage to prepare NXI offline. Free some space and reload.', url)
-    : installFailure('storage-unavailable', 'NXI could not save an app file for offline use. Check browser storage access and reload.', url);
+    ? installFailure('storage-full', 'Not enough device storage to prepare Mochi offline. Free some space and reload.', url)
+    : installFailure('storage-unavailable', 'Mochi could not save an app file for offline use. Check browser storage access and reload.', url);
 }
 async function reportInstallFailure(error) {
   try {
@@ -48,18 +48,18 @@ async function responseFor(url) {
   catch { throw installFailure('network-failed', 'An app file could not be downloaded. Check your connection and reload.', requested); }
   const finalUrl = response.url ? new URL(response.url) : fetchUrl;
   if (response.redirected || response.type === 'opaque' || finalUrl.origin !== scope.origin || !finalUrl.pathname.startsWith(scope.pathname))
-    throw installFailure('unexpected-redirect', 'Offline asset unavailable: an app file was redirected instead of downloaded. Open NXI online and sign in again if prompted.', requested);
-  if (!response.ok) throw installFailure('asset-unavailable', 'Offline asset unavailable (HTTP ' + response.status + '). Reload NXI online to retry.', requested);
+    throw installFailure('unexpected-redirect', 'Offline asset unavailable: an app file was redirected instead of downloaded. Open Mochi online and sign in again if prompted.', requested);
+  if (!response.ok) throw installFailure('asset-unavailable', 'Offline asset unavailable (HTTP ' + response.status + '). Reload Mochi online to retry.', requested);
   return response;
 }
 async function verifiedResponse(response, asset) {
   let bytes;
   try { bytes = await response.arrayBuffer(); }
   catch { throw installFailure('network-failed', 'An app file download was interrupted. Check your connection and reload.', asset.url); }
-  if (bytes.byteLength !== asset.size) throw installFailure('asset-size-mismatch', 'Offline asset size changed. Reload NXI online to get a consistent build.', asset.url);
+  if (bytes.byteLength !== asset.size) throw installFailure('asset-size-mismatch', 'Offline asset size changed. Reload Mochi online to get a consistent build.', asset.url);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
-  if (hash !== asset.sha256) throw installFailure('asset-hash-mismatch', 'Offline asset changed during download. Reload NXI online to get a consistent build.', asset.url);
+  if (hash !== asset.sha256) throw installFailure('asset-hash-mismatch', 'Offline asset changed during download. Reload Mochi online to get a consistent build.', asset.url);
   return new Response(bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
 }
 self.addEventListener('install', event => event.waitUntil((async () => {
@@ -69,9 +69,9 @@ self.addEventListener('install', event => event.waitUntil((async () => {
     const manifestResponse = await responseFor(new URL('precache.json', scope));
     let manifest;
     try { manifest = await manifestResponse.json(); }
-    catch { throw installFailure('invalid-manifest', 'The offline app list is invalid. Open NXI online and reload.', new URL('precache.json', scope)); }
+    catch { throw installFailure('invalid-manifest', 'The offline app list is invalid. Open Mochi online and reload.', new URL('precache.json', scope)); }
     if (!manifest || manifest.version !== BUILD || !Array.isArray(manifest.files) || manifest.files.length > 10000 ||
-        !['index.html','main.js', 'jit-cache.js','_framework/dotnet.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png'].every(f => manifest.files.includes(f))) throw installFailure('build-mismatch', 'Offline manifest does not match this build. Close NXI tabs and reopen online to retry.');
+        !['index.html','main.js', 'jit-cache.js','_framework/dotnet.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png'].every(f => manifest.files.includes(f))) throw installFailure('build-mismatch', 'Offline manifest does not match this build. Close Mochi tabs and reopen online to retry.');
     const assets = [...new Set(manifest.files)].map(file => {
       const url = assetUrl(file), expected = manifest.assets?.[file];
       if (!expected || !Number.isSafeInteger(expected.size) || expected.size < 0 ||

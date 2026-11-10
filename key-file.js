@@ -124,7 +124,7 @@ export function prepareKeyFile(fileName, input, { compatibleOnly = false } = {})
   if (issues.length && (!compatibleOnly || !recognizedEntries)) {
     const first = issues[0];
     const label = first.key || 'this title-key entry';
-    const error = new Error(`Line ${first.line}: NXI expects ${first.expectedDigits} hexadecimal digits for ${label}; this entry has ${first.actualDigits}.` +
+    const error = new Error(`Line ${first.line}: Mochi expects ${first.expectedDigits} hexadecimal digits for ${label}; this entry has ${first.actualDigits}.` +
       (issues.length > 1 ? ` ${issues.length} entries have incompatible lengths.` : '') + ' Your saved keys were not replaced.');
     Object.assign(error, { code: 'key_entries_incompatible',
       canImportCompatible: name !== 'title.keys' && recognizedEntries > 0,

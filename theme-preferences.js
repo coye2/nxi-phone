@@ -1,4 +1,4 @@
-import { themes } from './visual/themes.js';
+import { themes } from './brand-theme.js';
 
 export const patterns = ['Plain', 'Dots', 'Grid', 'Orbits', 'Stripes', 'Checker', 'Stars', 'Waves', 'Triangles', 'Pixels'];
 const color = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : null;

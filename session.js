@@ -53,7 +53,7 @@ export function createSessionController(api, {
 
   async function change(paused, generation) {
     const operation = paused ? api.PauseSession : api.ResumeSession;
-    if (typeof operation !== 'function') throw new Error('Reload NXI to update its game session controls.');
+    if (typeof operation !== 'function') throw new Error('Reload Mochi to update its game session controls.');
     await operation.call(api, generation);
     const status = await read();
     if (status.ErrorCode) throw new Error(status.ErrorMessage || 'The game session could not change state.');

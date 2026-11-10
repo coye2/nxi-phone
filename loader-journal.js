@@ -1,7 +1,9 @@
 // Version 1 of BrowserLaunchJournalLayout. Decode only a stable private copy.
 const stages = [null, 'native.partition.open', 'native.content.select', 'native.program-map.register',
   'native.sections.open', 'native.metadata.load', 'native.nso.header', 'native.nso.allocate',
-  'native.nso.sections', 'native.process.initialize'];
+  'native.nso.sections', 'native.process.initialize', 'native.runtime.setup', 'native.runtime.services',
+  'native.runtime.config', 'native.runtime.device', 'native.runtime.dram', 'native.runtime.gpu',
+  'native.runtime.horizon', 'native.runtime.hid', 'native.runtime.service-start', 'native.runtime.renderer'];
 const bytes = 2112, capacity = 64;
 const safe = n => Number.isSafeInteger(n) && n >= 0;
 

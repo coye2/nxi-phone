@@ -43,7 +43,7 @@ async function save(api,force,report){
  // Locking alone is insufficient: a tab may have loaded an older generation
  // before another window saved. Never replace newer progress with that stale copy.
  if((previous?.generation??null)!==(restoredGeneration??null))
-  throw Error('Saved progress changed in another NXI window. The newer save is preserved. Reload this window before playing or saving again.');
+  throw Error('Saved progress changed in another Mochi window. The newer save is preserved. Reload this window before playing or saving again.');
  let begun=false,writer;
  try{
   const encoded=await api.BeginDeviceSnapshot();begun=true;

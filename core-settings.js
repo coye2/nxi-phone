@@ -10,7 +10,7 @@ export function validateSetting(schema, value) {
 }
 export function planSettingsImport(document, schemas) {
   if (!document || document.format !== 'nxi-settings' || document.version !== 1 || document.core !== 'nxi' || document.scope !== 'global' || !document.settings || typeof document.settings !== 'object' || Array.isArray(document.settings))
-    throw new Error('Choose a global NX Infinity settings export. Game-specific files can be imported in the full launcher.');
+    throw new Error('Choose a global Mochi settings export. Game-specific files can be imported in the full launcher.');
   const apply = [], skipped = [];
   for (const [id, value] of Object.entries(document.settings)) {
     const schema = schemas.find(s => s.id === id);

@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#EDF2F3">
-  <title>NX Infinity</title>
+  <meta name="theme-color" content="#FDECF2">
+  <title>Mochi</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="NX Infinity">
+  <meta name="apple-mobile-web-app-title" content="Mochi">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="mobile.css">
   <link rel="stylesheet" href="controls.css">
@@ -19,7 +19,7 @@
   <div id="tools">
     <button id="import" disabled>Add game</button><button id="cancel-import" hidden>Cancel import</button><button id="setup" disabled>Setup</button>
     <input id="keys" type="file" accept=".keys" hidden><input id="file" type="file" accept=".nro,.nso,.nsp,.xci" hidden>
-    <span id="message" role="status">Loading NX Infinity…</span>
+    <span id="message" role="status">Loading Mochi…</span>
   </div>
 
   <dialog id="setup-dialog" aria-labelledby="setup-title">
@@ -36,17 +36,17 @@
       <p id="key-recovery-lines"></p>
     </details>
     <p id="offline-message" role="status" class="muted">Checking offline availability…</p>
-    <button id="classic-mode" disabled>Open full NXI launcher</button><button id="export-diagnostics" disabled>Export diagnostics</button>
+    <button id="classic-mode" disabled>Open full Mochi launcher</button><button id="export-diagnostics" disabled>Export diagnostics</button>
     <button id="retry-save" hidden>Retry saving progress</button>
     <p class="muted">Save in your game, then use Stop to keep that save on this device. Game compatibility is still being tested.</p>
   </dialog>
 
-  <section id="mobile" class="home-shell" data-mode="home" aria-label="NX Infinity launcher">
+  <section id="mobile" class="home-shell" data-mode="home" aria-label="Mochi launcher">
     <header class="home-header">
       <div class="top">
-        <button class="brand" id="mobile-brand" aria-label="NX Infinity library">
-          <img src="visual/nxi-logo.png" width="36" height="36" alt="">
-          <span>NX Infinity<small id="mobile-mode-label">HOME</small></span>
+        <button class="brand" id="mobile-brand" aria-label="Mochi library">
+          <img class="mochi-art" draggable="false" src="icons/icon-192.png" width="36" height="36" alt="">
+          <span>Mochi<small id="mobile-mode-label">HOME</small></span>
         </button>
         <div class="top-actions">
           <time id="mobile-clock" aria-label="Current time"></time>
@@ -73,8 +73,8 @@
         </div>
         <button id="mobile-more" class="secondary" hidden>Show more games</button>
         <div id="mobile-empty" class="home-empty">
-          <div class="empty-icon"><svg viewBox="0 0 24 24" class="icon" aria-hidden="true"><path d="M3 4h6v16H3zM12 4h3v16h-3zM18 4l3 1v15l-3-1z"/></svg></div>
-          <strong>Your library</strong><p>Your games will appear here when NX Infinity is ready.</p><button class="primary" data-add disabled>Import games</button>
+          <div class="empty-icon"><img class="mochi-art" draggable="false" src="visual/mochi-mascot.png" width="72" height="72" alt=""><svg class="icon base-art" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v16H3zM12 4h3v16h-3zM18 4l3 1v15l-3-1z"/></svg></div>
+          <strong>Your library</strong><p>Your games will appear here when Mochi is ready.</p><button class="primary" data-add disabled>Import games</button>
           <button id="mobile-clear-filter" class="text-button" hidden>Show all games</button>
         </div>
         <h2 id="mobile-review-title" class="mobile-section" hidden>Review files</h2><div id="mobile-review" class="tiles review-grid"></div>
@@ -84,19 +84,20 @@
         <div class="page-heading"><button class="back-button" data-back aria-label="Back to library">‹</button><h1 id="mobile-settings-title">Settings</h1></div>
         <div class="settings-list">
           <label class="setting-row"><span><strong>Open in</strong><small>Your default launcher view</small></span><select id="mobile-default-mode"><option value="home">HOME</option><option value="desktop">Library</option></select></label>
-          <button class="setting-row" data-page="themes"><span><strong>Appearance</strong><small id="mobile-theme-name">Original HOME</small></span><span aria-hidden="true">›</span></button>
+          <button class="setting-row" data-page="themes"><span><strong>Appearance</strong><small id="mobile-theme-name">Mochi</small></span><span aria-hidden="true">›</span></button>
           <button class="setting-row" data-page="profile"><span><strong>Launcher profile</strong><small id="mobile-profile-name">Player</small></span><span aria-hidden="true">›</span></button>
           <button class="setting-row" data-setup><span><strong>Console setup</strong><small>Keys, firmware and diagnostics</small></span><span aria-hidden="true">›</span></button>
-          <button class="setting-row" data-classic disabled><span><strong>Full NXI launcher</strong><small>Core, controls and game settings</small></span><span aria-hidden="true">›</span></button>
+          <button class="setting-row" data-classic disabled><span><strong>Full Mochi launcher</strong><small>Core, controls and game settings</small></span><span aria-hidden="true">›</span></button>
         </div>
       </section>
       <section id="mobile-themes" class="subpage" hidden aria-labelledby="mobile-themes-title">
         <div class="page-heading"><button class="back-button" data-page="settings" aria-label="Back to settings">‹</button><h1 id="mobile-themes-title">Themes</h1></div>
-        <p class="page-intro">The complete desktop collection, with independent HOME and Library preferences.</p>
+        <p class="page-intro">Pastel and AMOLED pastel themes, with independent HOME and Library preferences.</p>
         <div class="mode-switch theme-mode" aria-label="Customize launcher view"><button data-theme-mode="home">HOME</button><button data-theme-mode="desktop">Library</button></div>
         <div class="settings-list theme-tools">
+          <label class="setting-row"><span><strong>UI mode</strong><small>Base uses standard icons and placeholders.</small></span><select id="ui-mode"><option value="mochi">Mochi artwork</option><option value="base">Base UI</option></select></label>
           <label class="setting-row">Find a theme <input id="theme-search" type="search" placeholder="Search themes"></label>
-          <label class="setting-row">Collection <select id="theme-category"><option>All</option><option>Classic</option><option>Bold &amp; neon</option><option>Game worlds</option><option>Light</option><option>Dark</option><option>Favorites</option></select></label>
+          <label class="setting-row">Collection <select id="theme-category"><option>All</option><option>Pastel</option><option>AMOLED pastel</option><option>Favorites</option></select></label>
           <label class="setting-row">Accent <input id="theme-accent" type="color"></label>
           <label class="setting-row">Pattern <select id="theme-pattern"></select></label>
           <div class="row"><button id="theme-reset-accent">Original accent</button><button id="theme-favorite">Favorite this theme</button></div>
@@ -125,22 +126,22 @@
           <p id="avatar-empty" class="avatar-empty" hidden>No characters here yet. Add favorites from Browse.</p>
           <div class="avatar-pagination"><button class="secondary" id="avatar-previous" disabled>Previous</button><span id="avatar-position">1 / 1</span><button class="secondary" id="avatar-next" disabled>Next</button></div>
           <button class="primary use-character" id="use-character" disabled>Use character</button>
-          <p id="avatar-count" class="screen-note">Characters only</p><p class="screen-note">Your chosen character is saved on this device. Game profiles are managed in the full NXI launcher.</p>
+          <p id="avatar-count" class="screen-note">Characters only</p><p class="screen-note">Your chosen character is saved on this device. Game profiles are managed in the full Mochi launcher.</p>
         </section>
       </section>
     </main>
 
     <nav class="home-dock" aria-label="Main navigation">
-      <button data-tab="home" aria-current="page"><span class="circle core"><img src="visual/nxi-logo.png" width="28" height="28" alt=""></span>HOME</button>
+      <button data-tab="home" aria-current="page"><span class="circle core"><img class="mochi-art" draggable="false" src="visual/mochi-mascot.png" width="28" height="28" alt=""><svg class="icon base-art" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9"/></svg></span>HOME</button>
       <button data-tab="library"><span class="circle"><svg viewBox="0 0 24 24" class="icon" aria-hidden="true"><path d="M3 4h6v16H3zM12 4h3v16h-3zM18 4l3 1v15l-3-1z"/></svg></span>Library</button>
       <button id="mobile-setup" aria-haspopup="dialog"><span class="circle"><svg viewBox="0 0 24 24" class="icon" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></svg></span>Setup</button>
       <button data-page="settings"><span class="circle settings"><svg viewBox="0 0 24 24" class="icon" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/></svg></span>Settings</button>
     </nav>
-    <div class="mobile-status" role="status"><span id="mobile-message">Loading NX Infinity…</span><button id="mobile-cancel" class="text-button" hidden>Cancel</button><button id="mobile-retry" class="secondary" hidden>Retry</button></div>
+    <div class="mobile-status" role="status"><span id="mobile-message">Loading Mochi…</span><button id="mobile-cancel" class="text-button" hidden>Cancel</button><button id="mobile-retry" class="secondary" hidden>Retry</button></div>
   </section>
 
   <button id="classic-return">Back to library</button><div id="out"></div>
-  <section id="game" hidden aria-label="Game"><canvas id="screen"></canvas><div id="game-status" role="status"><strong id="game-title">NX Infinity</strong><p id="game-message">Starting game…</p></div><div id="game-toolbar"><button id="pause" disabled>Pause</button><button id="stop">Stop and return to library</button><button id="game-diagnostics">Download diagnostics</button><span id="game-diagnostics-message" role="status"></span></div></section>
+  <section id="game" hidden aria-label="Game"><canvas id="screen"></canvas><div id="game-status" role="status"><strong id="game-title">Mochi</strong><p id="game-message">Starting game…</p></div><div id="game-toolbar"><button id="pause" disabled>Pause</button><button id="stop">Stop and return to library</button><button id="game-diagnostics">Download diagnostics</button><span id="game-diagnostics-message" role="status"></span></div></section>
   <script type="module" src="main.js"></script>
 </body>
 </html>

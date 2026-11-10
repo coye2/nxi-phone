@@ -15,12 +15,12 @@ async function savedKeyBytes(dir, name) {
     return bytes;
   } catch (error) {
     if (error?.name === 'NotFoundError') return null;
-    throw new Error('The previously saved key file could not be read safely. It has been kept. Reload NXI and try again.');
+    throw new Error('The previously saved key file could not be read safely. It has been kept. Reload Mochi and try again.');
   }
 }
 class SavedKeysChangedError extends Error {
   constructor() {
-    super('Keys loaded for this session, but another NXI window changed the saved key file. Its saved file was kept. Try the import again.');
+    super('Keys loaded for this session, but another Mochi window changed the saved key file. Its saved file was kept. Try the import again.');
   }
 }
 async function assertSavedKeysUnchanged(dir, name, before) {
@@ -57,7 +57,7 @@ export async function saveKeys(file, api, { compatibleOnly = false } = {}) {
   return navigator.locks.request(KEYS_LOCK, { mode: 'exclusive' }, async () => {
     let dir;
     try { dir = await directory(); }
-    catch { throw new Error('Saved key files could not be accessed. Reload NXI and try again.'); }
+    catch { throw new Error('Saved key files could not be accessed. Reload Mochi and try again.'); }
     // Read the latest prior file under the lock, only after an explicit action.
     const previousBytes = await savedKeyBytes(dir, name);
     let prepared = incoming, retainedEntries = 0;
@@ -77,7 +77,7 @@ export async function saveKeys(file, api, { compatibleOnly = false } = {}) {
     catch {
       // Native parser exceptions may contain private values. An unsuccessful
       // import must neither persist the file nor claim its keys were loaded.
-      throw new Error('NXI could not load this key file. Stop any running game, then try again. Your saved keys were not replaced.');
+      throw new Error('Mochi could not load this key file. Stop any running game, then try again. Your saved keys were not replaced.');
     }
     let writer, handle;
     try {
@@ -113,7 +113,7 @@ export async function restoreSetup(api) {
   const report = { restored: [], failed: [] };
   let dir;
   try { dir = await directory(); }
-  catch { throw new Error('Saved setup files could not be accessed. Reload NXI, then open Setup and import your key files again if needed.'); }
+  catch { throw new Error('Saved setup files could not be accessed. Reload Mochi, then open Setup and import your key files again if needed.'); }
   // Do not report native exception text: a parser or storage error may contain
   // private key material. A bad optional file must not prevent the others loading.
   const fail = (name, code, reason) => report.failed.push({

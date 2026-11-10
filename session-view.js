@@ -7,7 +7,7 @@ export function sessionPresentation(status, stopping = false) {
   const paused = state === 'paused';
   return {
     active,
-    title: status.title || 'NX Infinity',
+    title: status.title || 'Mochi',
     message: stopping ? 'Stopping and saving progress…' : failed ? (status.ErrorMessage || 'The game stopped with an error.')
       : paused ? 'Paused' : status.isLaunching ? (status.Status || 'Starting game…')
       : Number(status.frames) > 0 ? '' : 'Waiting for the first game frame…',

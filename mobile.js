@@ -1,5 +1,6 @@
 import { noteAppReload } from './diagnostics.js';
-import { themes } from './visual/themes.js';
+import { themes } from './brand-theme.js';
+import { initializeAppViewport } from './app-shell.js';
 import { normalizeThemes, desktopThemeFile, resolvedTheme, patterns, patternImages, downloadJson } from './theme-preferences.js';
 import { mountMemoryPanel } from './memory-panel.js';
 import { mountCoreSettings } from './core-settings.js';
@@ -36,11 +37,13 @@ export function reportMobileStatus(text, options = {}) {
 
 export function initializeMobileShell() {
   if (shell) return shell;
+  initializeAppViewport();
   const root = byId('mobile'), main = byId('mobile-main'), importButton = byId('import');
   const saved = readPreferences();
   mountMemoryPanel(byId('mobile-settings'));
   const preferred = ['home', 'desktop'].includes(saved.defaultMode) ? saved.defaultMode : 'home';
   const preferences = {
+    uiMode: saved.uiMode === 'base' ? 'base' : 'mochi',
     defaultMode: preferred, homeTheme: saved.homeTheme ?? 'home', desktopTheme: saved.desktopTheme ?? 'dune',
     profileName: typeof saved.profileName === 'string' ? saved.profileName.slice(0, 40) : 'Player',
     avatar: avatarUrl(saved.avatar) === saved.avatar ? saved.avatar : null,
@@ -58,6 +61,16 @@ export function initializeMobileShell() {
   const characters = { categories: [], items: [], loaded: false, loading: null, error: '', category: preferences.avatarCategory,
     query: '', favoritesOnly: false, page: 0, pending: null, saving: false };
   const artwork = new Map(), artworkQueue = [];
+  let brandingSync = Promise.resolve();
+  function applyUiMode() {
+    root.dataset.uiMode = preferences.uiMode;
+    byId('ui-mode').value = preferences.uiMode;
+    const base = preferences.uiMode === 'base';
+    // Optional on older binaries; changing browser appearance never gates startup.
+    if (typeof state.api?.SetBaseUiMode === 'function')
+      brandingSync = brandingSync.catch(() => {}).then(() => state.api.SetBaseUiMode(base))
+        .catch(() => report('The full launcher could not update its appearance. Reopen it to retry.'));
+  }
   let artworkActive = 0;
   const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(items => {
     for (const item of items) if (item.isIntersecting) { observer.unobserve(item.target); queueArtwork(item.target); }
@@ -153,7 +166,7 @@ export function initializeMobileShell() {
     const empty = byId('mobile-empty'); empty.hidden = games.length > 0 || review.length > 0;
     const filtering = state.filter !== 'all' || !!query;
     empty.querySelector('strong').textContent = !state.loaded ? 'Your library' : filtering ? 'No games in this view' : 'No games yet';
-    empty.querySelector('p').textContent = !state.loaded ? 'Your games will appear here when NX Infinity is ready.' : filtering ? 'Return to all games or change your search.' : 'Import your own files from your device.';
+    empty.querySelector('p').textContent = !state.loaded ? 'Your games will appear here when Mochi is ready.' : filtering ? 'Return to all games or change your search.' : 'Import your own files from your device.';
     empty.querySelector('[data-add]').hidden = filtering;
     byId('mobile-clear-filter').hidden = !filtering;
     byId('mobile-selected').hidden = !isHome || !games.length;
@@ -207,7 +220,7 @@ export function initializeMobileShell() {
     const choice = preferences.themePreferences[state.mode], favorites = preferences.themePreferences.favorites;
     const filter = byId('theme-category').value, query = byId('theme-search').value.trim().toLowerCase();
     const visible = themes.filter(t => (!query || t.name.toLowerCase().includes(query)) && (filter === 'All' || filter === t.category || filter === 'Favorites' && favorites.includes(t.id) || filter === 'Dark' && t.night || filter === 'Light' && !t.night));
-    byId('theme-count').textContent = `${visible.length} of ${themes.length} desktop themes`;
+    byId('theme-count').textContent = `${visible.length} of ${themes.length} pastel themes`;
     byId('theme-accent').value = themeFor().accent;
     byId('theme-pattern').value = choice.pattern;
     byId('theme-favorite').textContent = favorites.includes(selected) ? 'Remove favorite' : 'Favorite this theme';
@@ -221,6 +234,7 @@ export function initializeMobileShell() {
   }
   function updateAppearance() { persist(); applyTheme(); renderThemes(); }
   byId('theme-category').onchange = renderThemes;
+  byId('ui-mode').onchange = event => { preferences.uiMode = event.target.value === 'base' ? 'base' : 'mochi'; persist(); applyUiMode(); };
   byId('theme-search').oninput = renderThemes;
   byId('theme-pattern').innerHTML = patterns.map(p => `<option>${p}</option>`).join('');
   byId('theme-pattern').onchange = event => { preferences.themePreferences[state.mode].pattern = event.target.value; updateAppearance(); };
@@ -248,7 +262,7 @@ export function initializeMobileShell() {
       const file = event.target.files[0]; if (!file) return;
       if (file.size > 1024 * 1024) throw new Error('Theme files must be smaller than 1 MiB.');
       const value = JSON.parse(await file.text());
-      if (!value || typeof value !== 'object' || !(value.home || value.Home || value.desktop || value.Desktop)) throw new Error('Choose an NXI theme preferences export.');
+      if (!value || typeof value !== 'object' || !(value.home || value.Home || value.desktop || value.Desktop)) throw new Error('Choose a Mochi theme preferences export.');
       preferences.themePreferences = normalizeThemes(value); updateAppearance(); report('Desktop theme preferences imported.');
     } catch (error) { report(error.message); } finally { event.target.value = ''; }
   };
@@ -339,7 +353,12 @@ export function initializeMobileShell() {
     }
     applyTheme();
   }
-  function showPage(page) {
+  function showPage(page, record = true) {
+    // Keep internal Back navigation on this document. Preserve other history state
+    // and leave the browser's initial entry/exit and game lifecycle untouched.
+    if (record && page !== state.page) {
+      history.pushState({ ...history.state, mochiShell: { page, mode: state.mode, detailId: state.detailId } }, '');
+    }
     state.page = page;
     for (const [key, id] of Object.entries({ library: 'mobile-library', detail: 'mobile-detail', settings: 'mobile-settings', themes: 'mobile-themes', profile: 'mobile-profile-page' })) byId(id).hidden = key !== page;
     main.scrollTop = 0; updateHeader();
@@ -357,7 +376,7 @@ export function initializeMobileShell() {
         const json = await state.api.MobileLibrary();
         if (force || json !== state.signature) {
           const entries = JSON.parse(json);
-          if (!Array.isArray(entries) || entries.some(entry => typeof entry?.id !== 'string' || typeof entry.name !== 'string')) throw new Error('NXI could not read the game library.');
+          if (!Array.isArray(entries) || entries.some(entry => typeof entry?.id !== 'string' || typeof entry.name !== 'string')) throw new Error('Mochi could not read the game library.');
           state.entries = entries.slice(0, 2000); state.signature = json; state.loaded = true;
           renderLibrary(); if (state.page === 'detail') renderDetails();
         }
@@ -420,11 +439,21 @@ export function initializeMobileShell() {
   mutations.observe(byId('classic-mode'), { attributes: true, attributeFilter: ['disabled'] });
   mutations.observe(byId('game'), { attributes: true, attributeFilter: ['hidden'] });
   const clock = () => { const now = new Date(); byId('mobile-clock').textContent = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(now); byId('mobile-clock').dateTime = now.toISOString(); };
+  history.replaceState({ ...history.state, mochiShell: { page: 'library', mode: state.mode, detailId: '' } }, '');
+  addEventListener('popstate', event => {
+    const route = event.state?.mochiShell;
+    if (!route || !['library', 'detail', 'settings', 'themes', 'profile'].includes(route.page)) return;
+    state.mode = route.mode === 'desktop' ? 'desktop' : 'home';
+    state.detailId = typeof route.detailId === 'string' ? route.detailId : '';
+    for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
+    showPage(route.page, false);
+  });
   clock(); let clockTimer = setInterval(clock, 60000);
   addEventListener('pagehide', () => { clearInterval(state.timer); state.timer = null; clearInterval(clockTimer); clockTimer = null; });
   addEventListener('pageshow', () => { startRefresh(); if (!clockTimer) clockTimer = setInterval(clock, 60000); clock(); void refresh(true); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { clock(); void refresh(); } });
-  shell = { refresh, attach(api) { state.api = api; startRefresh(); synchronize(); void refresh(true); void coreSettings.refresh(); return shell; } };
+  shell = { refresh, attach(api) { state.api = api; applyUiMode(); startRefresh(); synchronize(); void refresh(true); void coreSettings.refresh(); return shell; } };
+  applyUiMode();
   showPage('library');
   return shell;
 }

@@ -18,7 +18,7 @@ const message = document.getElementById('message');
 initializeMobileShell();
 // Safari answers every on-device storage call this way in Private Browsing.
 const explain = text => /unknown transient reason/i.test(text)
-  ? 'This browser blocked on-device storage, so NXI can\'t keep games here. Private Browsing does this: open NXI in a normal tab or from your Home Screen. (' + text + ')'
+  ? 'This browser blocked on-device storage, so Mochi can\'t keep games here. Private Browsing does this: open Mochi in a normal tab or from your Home Screen. (' + text + ')'
   : text;
 const tell = text => { text = explain(text); phase(text); message.textContent = text; reportMobileStatus(text); console.log('NXI-UI ' + text); };
 let activeApi = null;
@@ -85,7 +85,7 @@ globalThis.nxiStartIoWorker = mailbox => {
       ioWorker = null;
     };
     ioWorker = new Worker(new URL('./nxi-io-worker.js', import.meta.url), { name: 'NXI storage' });
-    const timer = setTimeout(() => fail('Local storage did not start. Reload NXI to retry.'), 10000);
+    const timer = setTimeout(() => fail('Local storage did not start. Reload Mochi to retry.'), 10000);
     ioWorker.onerror = e => { clearTimeout(timer); fail('Storage worker failed: ' + e.message); };
     ioWorker.onmessage = ({ data }) => {
       if (data.type === 'ready') { clearTimeout(timer); resolve(); }
@@ -113,7 +113,7 @@ try {
     catch (error) { offlineError = error; offlineStatus('Offline installation unavailable: ' + error.message); }
   } else offlineStatus(isSecureContext
     ? 'Offline installation is not supported by this browser.'
-    : 'Offline installation requires HTTPS. Open NXI from its secure site address.');
+    : 'Offline installation requires HTTPS. Open Mochi from its secure site address.');
   if (!crossOriginIsolated && !registration && offlineError) throw offlineError;
   if (!crossOriginIsolated && registration) {
     // Use this registration's active build even when a newer update is waiting.
@@ -127,8 +127,8 @@ try {
     }
   }
   if (!crossOriginIsolated) throw new Error(isSecureContext
-    ? 'NXI needs cross-origin isolation for its CPU threads. Reload after the site has installed.'
-    : 'Open NXI using its HTTPS address. This browser cannot start CPU threads on an insecure page.');
+    ? 'Mochi needs cross-origin isolation for its CPU threads. Reload after the site has installed.'
+    : 'Open Mochi using its HTTPS address. This browser cannot start CPU threads on an insecure page.');
   sessionStorage.removeItem('nxi-launcher-isolation-reload');
   if (new URLSearchParams(location.search).has('memtest')) {
     // Phone memory probe instead of NXI; see memtest.js.
@@ -136,12 +136,12 @@ try {
     try { await runMemoryTest(tell); } catch (error) { tell('memtest failed: ' + error.message); }
     await new Promise(() => {});
   }
-  tell('Starting NX Infinity…');
+  tell('Starting Mochi…');
   // Starting can take a minute on a phone; show it is still working.
   const startedAt = Date.now();
   const startTicker = setInterval(() => {
-    if (message.textContent.startsWith('Starting NX Infinity'))
-      tell(`Starting NX Infinity… ${Math.round((Date.now() - startedAt) / 1000)} s (phones can take a minute)`);
+    if (message.textContent.startsWith('Starting Mochi'))
+      tell(`Starting Mochi… ${Math.round((Date.now() - startedAt) / 1000)} s (phones can take a minute)`);
   }, 5000);
   // Launcher UI drawing: software on iPhone/iPad (the WebGL path crashed a real iPhone at startup),
   // Avalonia's default elsewhere. ?render=gl or ?render=software overrides it for testing.
@@ -157,7 +157,7 @@ try {
     if (!step) { try { sessionStorage.removeItem(STALLS); } catch {} return; }
     stallTimer = setTimeout(() => {
       let stalls = 0; try { stalls = +(sessionStorage.getItem(STALLS) ?? 0); } catch {}
-      if (stalls >= 2) { tell('NX Infinity is taking unusually long to start. Close it fully and open it again.'); return; }
+      if (stalls >= 2) { tell('Mochi is taking unusually long to start. Close it fully and open it again.'); return; }
       try { sessionStorage.setItem(STALLS, String(stalls + 1)); } catch {}
       noteAppReload('startup-stall'); phase('startup stalled at ' + step + ', reloading'); location.reload();
     }, 25000);
@@ -270,7 +270,7 @@ try {
   try {
     if (localStorage.getItem(FIRMWARE_PENDING)) {
       firmwareBlocked = true; localStorage.removeItem(FIRMWARE_PENDING);
-      setupWarnings.push('NXI closed while restoring your firmware last time, most likely because the phone ran out of memory. It was not restored this time, so homebrew still works. Open Setup and import the firmware again to retry.');
+      setupWarnings.push('Mochi closed while restoring your firmware last time, most likely because the phone ran out of memory. It was not restored this time, so homebrew still works. Open Setup and import the firmware again to retry.');
     }
   } catch {}
   startup.phase('library-restore');
@@ -375,17 +375,17 @@ try {
       await mobile.refresh(true);
       try {
         if (!await saveDeviceState(api, { force: true }))
-          throw new Error('NXI is busy. Finish the current action, then retry saving.');
+          throw new Error('Mochi is busy. Finish the current action, then retry saving.');
       } catch (error) {
         retrySave.hidden = false;
-        document.getElementById('setup-message').textContent = 'The game was added, but NXI could not finish saving its changes. Keep NXI open and retry saving. ' + (error.message || String(error));
+        document.getElementById('setup-message').textContent = 'The game was added, but Mochi could not finish saving its changes. Keep Mochi open and retry saving. ' + (error.message || String(error));
         tell('Game added. Open Setup to retry saving.');
         if (!setupDialog.open) setupDialog.showModal();
         return;
       }
       tell(result.warning || 'Added to your device. Select the game and press Play.');
     } catch (e) {
-      tell(operation.committed ? 'The game was added, but its library view could not be refreshed. Reload NXI to reopen it.'
+      tell(operation.committed ? 'The game was added, but its library view could not be refreshed. Reload Mochi to reopen it.'
         : operation.userCancelled && operation.controller.signal.aborted ? 'Import cancelled. No game was added.'
         : e.message || String(e));
     } finally { picker.value = ''; cancel.hidden = true; cancel.disabled = false; release(); }
@@ -458,7 +458,7 @@ try {
       document.getElementById('setup-message').textContent = savedMessage;
     } catch (error) {
       document.getElementById('setup-message').textContent = savedMessage
-        ? `${savedMessage} The library could not refresh. Reload NXI to update it.`
+        ? `${savedMessage} The library could not refresh. Reload Mochi to update it.`
         : error.message || String(error);
       if (!savedMessage && !compatibleOnly && generation === recoveryGeneration && setupDialog.open &&
           /^(prod|console)\.keys$/i.test(file.name) && error.code === 'key_entries_incompatible' && error.canImportCompatible === true &&
@@ -534,12 +534,12 @@ try {
       await api.Stop();
       gameStopped = true;
       if (!await saveDeviceState(api, { force: true, report: tell }))
-        throw new Error('Device data is still busy. Keep NXI open and try saving again.');
+        throw new Error('Device data is still busy. Keep Mochi open and try saving again.');
     } catch (e) {
       tell(e.message || String(e));
       if (gameStopped) {
         retrySave.hidden = false;
-        document.getElementById('setup-message').textContent = 'The game stopped, but its latest progress could not be saved. Keep NXI open. ' + (e.message || String(e));
+        document.getElementById('setup-message').textContent = 'The game stopped, but its latest progress could not be saved. Keep Mochi open. ' + (e.message || String(e));
         if (!setupDialog.open) setupDialog.showModal();
       }
     }
