@@ -33,20 +33,36 @@ phase('page loaded');
 
 // Keep at most one native status call pending while the loader is busy.
 // Loader transitions get their own breadcrumb so long titles cannot hide them.
-export function createPlayStatusObserver(api, record = phase) {
+export function createPlayStatusObserver(api, record = phase, now = () => performance.now()) {
   let pending = false, disposed = false, status = '', lastStage = '';
+  let pendingAt = null, sampledAt = null, lastOperation = '', lastHealth = -1;
+  let lastSequence = 0;
   return {
     get status() { return status; },
+    get health() { return { pendingMs: pendingAt === null ? null : Math.max(0, Math.round(now() - pendingAt)), sampleAgeMs: sampledAt === null ? null : Math.max(0, Math.round(now() - sampledAt)) }; },
     poll() {
-      if (pending || disposed) return;
-      pending = true;
+      if (disposed) return;
+      if (pending) {
+        const bucket = Math.floor((now() - pendingAt) / 2000);
+        if (bucket > 0 && bucket !== lastHealth) { lastHealth = bucket; record('status observation pending ' + bucket * 2 + ' s'); }
+        return;
+      }
+      pending = true; pendingAt = now(); lastHealth = -1;
       Promise.resolve().then(() => api.Status()).then(json => {
         if (disposed) return;
         const value = JSON.parse(json);
+        sampledAt = now();
+        for (const entry of (Array.isArray(value.prerequisiteTrace) ? value.prerequisiteTrace.slice(-48) : [])) {
+          if (!Number.isSafeInteger(entry.sequence) || entry.sequence <= lastSequence || !Number.isSafeInteger(entry.launchGeneration) || entry.launchGeneration !== value.launchGeneration || typeof entry.completed !== 'boolean' || typeof entry.stage !== 'string' || !/^[a-z][a-z0-9_.-]{0,63}$/.test(entry.stage)) continue;
+          lastSequence = entry.sequence;
+          record(`prerequisite: ${entry.stage} ${entry.completed ? 'complete' : 'begin'}`);
+        }
+        const operation = typeof value.operationStage === 'string' && /^[a-z][a-z0-9_.-]{0,63}$/.test(value.operationStage) ? value.operationStage : '';
+        if (operation && operation !== lastOperation) { lastOperation = operation; record('operation: ' + operation); }
         status = String(value.Status ?? '').slice(0, 120);
         const stage = typeof value.loaderStage === 'string' ? value.loaderStage.slice(0, 110) : '';
         if (stage && stage !== lastStage) { lastStage = stage; record('loader: ' + stage); }
-      }).catch(() => {}).finally(() => { pending = false; });
+      }).catch(() => {}).finally(() => { pending = false; pendingAt = null; });
     },
     dispose() { disposed = true; },
   };

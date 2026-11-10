@@ -1,29 +1,31 @@
 {
   "sourceRepository": "coye2/NX-Infinity-Development",
-  "sourceCommit": "0783757452f13a9b5809140858e58cad459904e4",
-  "nativeSourceCommit": "d53e93fdd5da33b0461692493d118e8a3c5af98f",
-  "previousDeployment": "09ff364c1d900fcd619567054e99fd91f8b1ef91",
+  "sourceCommit": "e95ec8c3bad9c3f36c51c84506be8c7507d79bdf",
+  "nativeSourceCommit": "14446e719810429da105eb863df82a2bc6bb1a7d",
+  "previousDeployment": "0703afd62f05cd5019ce5a824187e2a3233629e8",
   "sdk": "10.0.100",
   "workload": "10.0.100",
   "configuration": "Release",
   "fullAot": true,
   "stripILAfterAot": true,
   "usesProjectInterpretationExceptions": true,
-  "sourceTestsPassed": 267,
-  "nativeCryptoTestsPassed": true,
-  "nativeSettingsTestsPassed": true,
+  "sourceTestsPassed": 292,
+  "prerequisiteHelperTestsPassed": 7,
   "desktopThemes": 94,
   "desktopCoreSettings": 23,
   "browserSupportedSettings": 10,
   "physicalPhoneVerified": false,
+  "physicalAndroidVerified": false,
   "retailGameVerified": false,
-  "builtAt": "2026-11-10T04:02:05.5981761Z",
   "cleanNativeBuild": true,
-  "nativeLoaderTestsPassed": 7,
-  "loaderMemoryChanges": [
-    "Decode compressed NSO sections directly into their final buffer",
-    "Hash section spans without a pooled section-sized copy",
-    "Skip browser RO-section diagnostic string scan",
-    "Save distinct native loader checkpoints with single-flight status polling"
-  ]
+  "changes": [
+    "Retry failed input delivery and preserve neutral release ordering",
+    "Record bounded launch-scoped prerequisite checkpoints before native load",
+    "Report native status observation delays without overlapping calls",
+    "Avoid optional artwork decoding during Play prerequisite inspection",
+    "Clean up shader translation resources and record translation failures",
+    "Enforce GPU buffer limits"
+  ],
+  "nativeLoaderTestsPassed": 8,
+  "builtAt": "2026-11-10T02:25:56.3751864-05:00"
 }

@@ -8,6 +8,16 @@ const OP = { Wrap: 0, CreateTexture: 1, DestroyTexture: 2, WriteTexture: 3, Pres
 const FORMATS = ['rgba8unorm', 'bgra8unorm'];
 let device, context, readback = false, readbackBusy = false, errors = 0, canvasFormat, memory, heap, head, ring, base, blit, sampler;
 let started = false, stopped = false;
+let capabilities = null;
+const shaderHealth = { attempted: 0, failed: 0, firstFailure: null };
+// Safe metadata only: no shader source, game bytes or exception text in snapshots.
+function shaderFailure(program, id, stage, phase) {
+  if (program.failed) return;
+  program.failed = phase;
+  shaderHealth.failed++;
+  shaderHealth.firstFailure ??= { program: id, stage, phase };
+  Atomics.add(head, 5, 1);
+}
 const textures = new Map();
 // Stage 2 (draws). Everything is keyed by ids the managed side picks.
 const buffers = new Map(), samplers = new Map(), programs = new Map();
@@ -28,7 +38,7 @@ struct V { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 self.onmessage = async ({ data }) => {
   if (data.type === 'memory-snapshot') {
     self.postMessage({ type: 'memory-snapshot', requestId: data.requestId, snapshot: {
-      at: new Date().toISOString(), buffers: buffers.size,
+      at: new Date().toISOString(), capabilities, shaderHealth: { ...shaderHealth }, buffers: buffers.size,
       bufferAllocationBytes: [...buffers.values()].reduce((sum, entry) => sum + entry.buffer.size, 0),
       ownedTextures: [...textures.values()].filter(entry => entry.owner).length,
       textureViews: [...textures.values()].filter(entry => !entry.owner).length,
@@ -47,6 +57,15 @@ self.onmessage = async ({ data }) => {
     const adapter = self.nxiAdapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
     if (!adapter) throw new Error('No WebGPU adapter');
     device = self.nxiDevice = await adapter.requestDevice();
+    capabilities = {
+      features: [...(device.features ?? [])].sort(),
+      limits: Object.fromEntries(['maxTextureDimension2D', 'maxBufferSize', 'maxUniformBufferBindingSize',
+        'maxStorageBufferBindingSize', 'maxBindGroups', 'maxUniformBuffersPerShaderStage',
+        'maxStorageBuffersPerShaderStage', 'maxSampledTexturesPerShaderStage',
+        'maxStorageTexturesPerShaderStage', 'maxComputeWorkgroupStorageSize']
+        .map(name => [name, device.limits[name] ?? null])),
+      shaderTranslator: false,
+    };
     device.lost.then(info => fail(new Error('WebGPU device lost: ' + info.message)), fail);
     // Validation errors are counted, not fatal: an unsupported draw shouldn't kill the display.
     device.onuncapturederror = e => { Atomics.add(head, 5, 1); if (++errors <= 20) console.error('NXI-GPU ' + e.error.message); };
@@ -67,11 +86,11 @@ self.onmessage = async ({ data }) => {
     try {
       const mod = await import(new URL('./naga/naga.js', self.location.href).href);
       await mod.default({ module_or_path: new URL('./naga/naga_bg.wasm', self.location.href) });
-      naga = mod;
+      naga = mod; capabilities.shaderTranslator = true;
     } catch (e) { console.error('NXI-GPU shader translator unavailable: ' + (e.message || e)); }
     if (stopped) return;
     Atomics.store(head, 3, 1);
-    postMessage({ ready: true, adapter: adapter.info?.vendor + ' ' + (adapter.info?.architecture ?? '') });
+    postMessage({ ready: true, capabilities, adapter: adapter.info?.vendor + ' ' + (adapter.info?.architecture ?? '') });
     pump().catch(fail);
   } catch (e) {
     fail(e);
@@ -310,30 +329,41 @@ function vertexInputs(wgsl) {
 
 function createProgram(r) {
   const id = r.u(), stageCount = r.u(), stages = {}, groups = [];
+  const program = { stages, groups, pipelines: new Map() };
+  programs.set(id, program);
+  shaderHealth.attempted++;
+  if (!stageCount) { shaderFailure(program, id, 'none', 'no-stages'); return; }
   for (let k = 0; k < stageCount; k++) {
     const stage = r.s(), spv = r.bytes(r.u());
-    if (!naga) throw new Error('No shader translator');
-    let wgsl;
+    if (!['vertex', 'fragment', 'compute'].includes(stage)) {
+      shaderFailure(program, id, 'unsupported', 'unsupported-stage'); return;
+    }
+    if (!naga) { shaderFailure(program, id, stage, 'translator-unavailable'); return; }
+    let wgsl, m, info;
     try {
-      const m = naga.parseSpirv(prepareSpirv(spv)), info = naga.validate(m);
+      m = naga.parseSpirv(prepareSpirv(spv)); info = naga.validate(m);
       wgsl = naga.writeWgsl(m, info, {});
-      m.free(); info.free();
-    } catch (e) {
-      programs.set(id, { failed: String(e.message || e) });
-      console.error('NXI-GPU shader ' + id + ' ' + stage + ': ' + String(e.message || e).slice(0, 300));
-      if (self.nxiDumpFailedShaders) console.log('NXI-SPV ' + id + ' ' + stage + ' Spirv ' + btoa(String.fromCharCode(...spv.slice())));
+    } catch {
+      shaderFailure(program, id, stage, 'spirv-translation');
       return;
+    } finally {
+      info?.free(); m?.free();
     }
     if (stage === 'vertex') wgsl = addFlipY(wgsl);
     reflect(wgsl, stage, groups);
-    stages[stage] = { module: device.createShaderModule({ code: wgsl }), wgsl };
+    const module = device.createShaderModule({ code: wgsl });
+    stages[stage] = { module, wgsl };
+    // A late result must not poison a replacement with the same id.
+    module.getCompilationInfo().then(result => {
+      if (!stopped && programs.get(id) === program && result.messages.some(m => m.type === 'error'))
+        shaderFailure(program, id, stage, 'wgsl-validation');
+    }, () => {
+      if (!stopped && programs.get(id) === program) shaderFailure(program, id, stage, 'wgsl-validation-unavailable');
+    });
   }
-  const layouts = [0, 1, 2, 3].map(g => device.createBindGroupLayout({ entries: [...(groups[g]?.values() ?? [])] }));
-  programs.set(id, {
-    stages, groups, layouts, pipelines: new Map(),
-    layout: device.createPipelineLayout({ bindGroupLayouts: layouts }),
-    inputs: stages.vertex ? vertexInputs(stages.vertex.wgsl) : [],
-  });
+  program.layouts = [0, 1, 2, 3].map(g => device.createBindGroupLayout({ entries: [...(groups[g]?.values() ?? [])] }));
+  program.layout = device.createPipelineLayout({ bindGroupLayouts: program.layouts });
+  program.inputs = stages.vertex ? vertexInputs(stages.vertex.wgsl) : [];
 }
 
 const BLEND_KEYS = ['op', 'src', 'dst', 'aop', 'asrc', 'adst'];
@@ -605,7 +635,10 @@ function runDraw(op, r) {
     case OP.CreateBuffer: {
       // +64 KiB tail: the core's constant buffers are declared as 64 KiB arrays, and WebGPU
       // wants the whole declared size bound even when the guest only uses a few bytes.
-      const id = r.u(), size = ((r.u() + 3) & ~3) + 65536;
+      const id = r.u(), size = Math.ceil(r.u() / 4) * 4 + 65536;
+      // Bitwise alignment wraps uint32 sizes into small or negative allocations.
+      // Reject the full padded size before destroying an existing valid buffer.
+      if (size > device.limits.maxBufferSize) throw new Error('GPU buffer exceeds device maxBufferSize');
       buffers.get(id)?.buffer.destroy();
       buffers.set(id, { buffer: device.createBuffer({ size, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.INDEX | GPUBufferUsage.UNIFORM | GPUBufferUsage.STORAGE | GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }) });
       break;

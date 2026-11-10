@@ -9,10 +9,29 @@ const axis = v => Math.round(Math.max(-1,Math.min(1,Math.abs(v)<0.12?0:v))*32767
 const strongest = (a,b) => Math.abs(a)>Math.abs(b)?a:b;
 
 export function startInput(api, game) {
-  let keys=0, last='', focused=true;
+  let keys=0, focused=true, delivered=null, desired=null, sending=false, releasePending=false, retryTimer=0;
   const held=new Map(), sticks={left:{x:0,y:0},right:{x:0,y:0}};
   const active=()=>!game.hidden&&focused&&document.visibilityState!=='hidden';
-  const send=(...values)=>{const key=values.join();if(key!==last){last=key;api.SetInput(...values).catch(()=>{});}};
+  function flushInput() {
+    if(sending||!desired)return;
+    // A lifecycle release is a barrier: a quick Stop/replay or focus return
+    // cannot coalesce it away while an earlier press is still pending.
+    const release=releasePending, update=release?{key:'0,0,0,0,0',values:[0,0,0,0,0]}:desired;
+    if(update.key===delivered){if(release){releasePending=false;flushInput();}return;}
+    sending=true;let failed=false;
+    Promise.resolve().then(()=>api.SetInput(...update.values)).then(
+      ()=>{delivered=update.key;if(release)releasePending=false;},
+      ()=>{delivered=null;failed=true;}
+    ).finally(()=>{
+      sending=false;
+      if(release&&failed){
+        // RAF may be suspended after backgrounding. Keep one bounded retry,
+        // never overlapping native calls or spinning on an immediate failure.
+        if(!retryTimer)retryTimer=setTimeout(()=>{retryTimer=0;flushInput();},100);
+      }else if(releasePending||desired.key!==update.key)flushInput();
+    });
+  }
+  const send=(...values)=>{desired={key:values.join(),values};flushInput();};
   const pad=document.createElement('div');pad.id='touchpad';pad.setAttribute('aria-label','Touch controller');
   const button=(key,label,cls='')=>`<button type="button" data-k="${key}" class="${cls}" aria-label="${key}">${label}</button>`;
   pad.innerHTML=`
@@ -24,7 +43,7 @@ export function startInput(api, game) {
   game.appendChild(pad);
   const resetStick=side=>{sticks[side]={x:0,y:0};const el=pad.querySelector(`[data-stick="${side}"]`);el.classList.remove('held');el.querySelector('.stick-nub').style.transform='translate(0,0)';};
   const paintButtons=()=>{let bits=0;for(const item of held.values())if(item.kind==='button')bits|=item.key;for(const b of pad.querySelectorAll('[data-k]'))b.classList.toggle('held',!!(bits&K[b.dataset.k]));return bits;};
-  const reset=()=>{keys=0;held.clear();resetStick('left');resetStick('right');paintButtons();send(0,0,0,0,0);};
+  const reset=()=>{keys=0;held.clear();resetStick('left');resetStick('right');paintButtons();releasePending=true;send(0,0,0,0,0);};
   addEventListener('keydown',e=>{if(active()&&KEYS[e.code]){keys|=KEYS[e.code];e.preventDefault();}});
   addEventListener('keyup',e=>{if(KEYS[e.code]){keys&=~KEYS[e.code];if(active())e.preventDefault();}});
   addEventListener('blur',()=>{focused=false;reset();});addEventListener('focus',()=>{focused=true;});
