@@ -31,10 +31,39 @@ export function phase(name) {
 }
 phase('page loaded');
 
-export async function collectDiagnostics(api) {
+export function createStartupDiagnostics(now = () => performance.now()) {
+  const started = now();
+  let phase = 'shell', status = 'starting';
+  let finished = null;
+  const phases = [{ phase, elapsedMs: 0 }];
+  return {
+    phase(value) {
+      phase = value;
+      phases.push({ phase, elapsedMs: Math.max(0, Math.round(now() - started)) });
+    },
+    finish(failed = false) { status = failed ? 'failed' : 'ready'; finished = now(); },
+    snapshot() {
+      return { status, phase, elapsedMs: Math.max(0, Math.round((finished ?? now()) - started)),
+        phases: phases.map(entry => ({ ...entry })) };
+    },
+  };
+}
+
+// Keep a stalled native export or metadata request from blocking the download.
+async function bounded(operation, timeoutMs) {
+  let timer;
+  try {
+    return await Promise.race([Promise.resolve().then(operation), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Diagnostic observation timed out')), timeoutMs);
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
+export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000 } = {}) {
+  const startupSnapshot = startup?.snapshot() ?? null;
   const results = await Promise.allSettled([
-    Promise.resolve().then(() => api.Status()),
-    Promise.resolve().then(() => api.Diagnostics()),
+    bounded(() => api.Status(), timeoutMs),
+    bounded(() => api.Diagnostics(), timeoutMs),
   ]);
   const report = {
     format: 'nxi-mobile-diagnostics', version: 1, capturedAt: new Date().toISOString(),
@@ -46,6 +75,7 @@ export async function collectDiagnostics(api) {
     device: { memoryGB: navigator.deviceMemory ?? null, cores: navigator.hardwareConcurrency ?? null,
       screen: globalThis.screen ? [screen.width, screen.height, globalThis.devicePixelRatio] : null },
     thisRun: trail.slice(), previousRun, earlierRuns,
+    startup: startupSnapshot,
     session: null, core: null, errors: [],
     qualification: { retailGameVerified: false, physicalPhoneVerified: false },
   };
@@ -55,19 +85,23 @@ export async function collectDiagnostics(api) {
   } else report.errors.push('Session status was unavailable.');
   if (results[1].status === 'fulfilled') report.core = results[1].value;
   else report.errors.push('Core diagnostics were unavailable.');
-  try {
-    const precache = await fetch(new URL('./precache.json', import.meta.url), { cache: 'no-store' });
-    if (precache.ok) report.offlineBuild = (await precache.json()).version ?? null;
-  } catch { /* offline: version unknown */ }
-  try {
-    const response = await fetch(new URL('./build-info.json', import.meta.url), { cache: 'no-store' });
-    if (response.ok && !response.redirected) report.build = await response.json();
-  } catch { /* A locally staged developer build may not have publication metadata. */ }
+  await Promise.all(['precache.json', 'build-info.json'].map(async file => {
+    const controller = new AbortController();
+    try {
+      const value = await bounded(async () => {
+        const response = await fetch(new URL('./' + file, import.meta.url), { cache: 'no-store', signal: controller.signal });
+        if (response.ok && !response.redirected) return response.json();
+      }, timeoutMs);
+      if (file === 'precache.json') report.offlineBuild = value?.version ?? null;
+      else if (value) report.build = value;
+    } catch { /* Metadata is optional, including when offline or starting. */ }
+    finally { controller.abort(); }
+  }));
   return report;
 }
 
-export async function exportDiagnostics(api) {
-  const report = await collectDiagnostics(api);
+export async function exportDiagnostics(api, startup) {
+  const report = await collectDiagnostics(api, startup);
   const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;

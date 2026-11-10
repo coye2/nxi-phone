@@ -1,0 +1,29 @@
+{
+  "sourceRepository": "coye2/NX-Infinity-Development",
+  "sourceCommit": "feb6b8a2a5f7d92f335bbe92011d42dd185115c7",
+  "nativeSourceCommit": "9cea0977b2206dc5053156ab74a6ac1e2f24372c",
+  "previousDeployment": "e22c42db474233823eaea6944f955ee76745eea2",
+  "sdk": "10.0.100",
+  "workload": "10.0.100",
+  "configuration": "Release",
+  "fullAot": true,
+  "stripILAfterAot": true,
+  "usesProjectInterpretationExceptions": true,
+  "sourceTestsPassed": 264,
+  "nativeCryptoTestsPassed": true,
+  "nativeSettingsTestsPassed": true,
+  "desktopThemes": 94,
+  "desktopCoreSettings": 23,
+  "browserSupportedSettings": 10,
+  "physicalPhoneVerified": false,
+  "retailGameVerified": false,
+  "builtAt": "2026-11-10T02:47:37.6573373Z",
+  "cleanNativeBuild": true,
+  "browserQualification": {
+    "iphone14ChromiumOnlineOffline": "passed",
+    "iphone14ChromiumReloads": 2,
+    "iphone14WebKitFrontend": "passed",
+    "windowsWebKitNativeStartup": "stalled",
+    "physicalPhone": "not-tested"
+  }
+}

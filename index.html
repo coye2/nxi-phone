@@ -92,8 +92,19 @@
       </section>
       <section id="mobile-themes" class="subpage" hidden aria-labelledby="mobile-themes-title">
         <div class="page-heading"><button class="back-button" data-page="settings" aria-label="Back to settings">‹</button><h1 id="mobile-themes-title">Themes</h1></div>
-        <p class="page-intro">The original NX Infinity theme collection.</p>
+        <p class="page-intro">The complete desktop collection, with independent HOME and Library preferences.</p>
         <div class="mode-switch theme-mode" aria-label="Customize launcher view"><button data-theme-mode="home">HOME</button><button data-theme-mode="desktop">Library</button></div>
+        <div class="settings-list theme-tools">
+          <label class="setting-row">Find a theme <input id="theme-search" type="search" placeholder="Search themes"></label>
+          <label class="setting-row">Collection <select id="theme-category"><option>All</option><option>Classic</option><option>Bold &amp; neon</option><option>Game worlds</option><option>Light</option><option>Dark</option><option>Favorites</option></select></label>
+          <label class="setting-row">Accent <input id="theme-accent" type="color"></label>
+          <label class="setting-row">Pattern <select id="theme-pattern"></select></label>
+          <div class="row"><button id="theme-reset-accent">Original accent</button><button id="theme-favorite">Favorite this theme</button></div>
+          <form id="theme-save-form" class="row"><input id="theme-save-name" placeholder="Custom theme name" aria-label="Custom theme name" maxlength="32"><button type="submit">Save theme</button><button type="button" id="theme-delete-saved">Remove saved</button></form>
+          <label class="setting-row">Saved <select id="theme-saved"></select></label>
+          <div class="row"><button id="theme-export">Export themes</button><label>Import desktop themes <input id="theme-import" type="file" accept=".json,application/json"></label></div>
+        </div>
+        <p id="theme-count" class="page-intro" aria-live="polite"></p>
         <div id="mobile-theme-grid" class="theme-grid"></div>
       </section>
       <section id="mobile-profile-page" class="subpage" hidden aria-labelledby="mobile-profile-title">

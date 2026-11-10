@@ -1,4 +1,7 @@
 import { themes } from './visual/themes.js';
+import { normalizeThemes, desktopThemeFile, resolvedTheme, patterns, patternImages, downloadJson } from './theme-preferences.js';
+import { mountMemoryPanel } from './memory-panel.js';
+import { mountCoreSettings } from './core-settings.js';
 import { avatarCategories, avatarItems, avatarData, validImagePath } from './visual/avatars.js';
 
 // Reuse NXI's original HOME / Dune presentation and preferences. The only game
@@ -34,6 +37,7 @@ export function initializeMobileShell() {
   if (shell) return shell;
   const root = byId('mobile'), main = byId('mobile-main'), importButton = byId('import');
   const saved = readPreferences();
+  mountMemoryPanel(byId('mobile-settings'));
   const preferred = ['home', 'desktop'].includes(saved.defaultMode) ? saved.defaultMode : 'home';
   const preferences = {
     defaultMode: preferred, homeTheme: saved.homeTheme ?? 'home', desktopTheme: saved.desktopTheme ?? 'dune',
@@ -44,10 +48,12 @@ export function initializeMobileShell() {
     avatarCategory: typeof saved.avatarCategory === 'string' ? saved.avatarCategory : 'super-mario-odyssey',
     favorites: Array.isArray(saved.favorites) ? saved.favorites.filter(id => typeof id === 'string').slice(0, 2000) : [],
     selectedGame: typeof saved.selectedGame === 'string' ? saved.selectedGame : '',
+    themePreferences: normalizeThemes(saved.themePreferences ?? { home: { preset: saved.homeTheme ?? 'home' }, desktop: { preset: saved.desktopTheme ?? 'dune' } }),
   };
   const state = { api: null, entries: [], signature: '', loaded: false, mode: preferred, page: 'library',
     filter: ['all', 'favorites', 'recent'].includes(saved.homeFilter) ? saved.homeFilter : 'all',
     selected: preferences.selectedGame, detailId: '', busy: false, limit: 60, refreshing: null, timer: null };
+  const coreSettings = mountCoreSettings(byId('mobile-settings'), () => state.api);
   const characters = { categories: [], items: [], loaded: false, loading: null, error: '', category: preferences.avatarCategory,
     query: '', favoritesOnly: false, page: 0, pending: null, saving: false };
   const artwork = new Map(), artworkQueue = [];
@@ -61,11 +67,14 @@ export function initializeMobileShell() {
     catch { reportMobileStatus('This browser could not save your launcher preferences. They will apply for this visit.'); return false; }
   }
   function report(text) { if (byId('message').textContent !== text) byId('message').textContent = text; reportMobileStatus(text); }
-  function themeFor(mode = state.mode) { return themes.find(t => t.id === preferences[mode === 'home' ? 'homeTheme' : 'desktopTheme']) ?? themes.find(t => t.id === (mode === 'home' ? 'home' : 'dune')); }
+  function themeFor(mode = state.mode) { return resolvedTheme(preferences.themePreferences[mode]); }
   function applyTheme() {
     const theme = themeFor();
     for (const key of ['canvas', 'surface', 'ink', 'muted', 'line', 'hover', 'accent']) document.documentElement.style.setProperty('--' + key, theme[key]);
-    document.documentElement.style.setProperty('--accent-ink', theme.night ? '#17241e' : '#ffffff');
+    document.documentElement.style.setProperty('--accent-ink', theme.accentInk);
+    document.documentElement.style.setProperty('--focus', theme.focus);
+    document.documentElement.style.setProperty('--theme-glow', theme.glow ?? 'transparent');
+    document.documentElement.style.setProperty('--theme-pattern', patternImages[theme.pattern]);
     document.documentElement.style.colorScheme = theme.night ? 'dark' : 'light';
     document.querySelector('meta[name="theme-color"]').content = theme.canvas;
     byId('mobile-theme-name').textContent = theme.name;
@@ -194,12 +203,54 @@ export function initializeMobileShell() {
   function renderThemes() {
     for (const button of root.querySelectorAll('[data-theme-mode]')) button.setAttribute('aria-pressed', String(button.dataset.themeMode === state.mode));
     const selected = themeFor().id;
-    byId('mobile-theme-grid').innerHTML = themes.map(theme => `<button class="theme-card" data-theme="${theme.id}" aria-pressed="${theme.id === selected}"><span class="theme-preview" style="background:${theme.canvas};--sample-ink:${theme.ink};--sample-accent:${theme.accent}"></span>${escape(theme.name)}</button>`).join('');
+    const choice = preferences.themePreferences[state.mode], favorites = preferences.themePreferences.favorites;
+    const filter = byId('theme-category').value, query = byId('theme-search').value.trim().toLowerCase();
+    const visible = themes.filter(t => (!query || t.name.toLowerCase().includes(query)) && (filter === 'All' || filter === t.category || filter === 'Favorites' && favorites.includes(t.id) || filter === 'Dark' && t.night || filter === 'Light' && !t.night));
+    byId('theme-count').textContent = `${visible.length} of ${themes.length} desktop themes`;
+    byId('theme-accent').value = themeFor().accent;
+    byId('theme-pattern').value = choice.pattern;
+    byId('theme-favorite').textContent = favorites.includes(selected) ? 'Remove favorite' : 'Favorite this theme';
+    byId('theme-saved').innerHTML = '<option value="">Saved themes</option>' + preferences.themePreferences.saved.map((t, i) => `<option value="${i}">${escape(t.name)}</option>`).join('');
+    byId('mobile-theme-grid').innerHTML = visible.map(theme => `<button class="theme-card" data-theme="${theme.id}" aria-pressed="${theme.id === selected}"><span class="theme-preview" style="background:${theme.canvas};--sample-ink:${theme.ink};--sample-accent:${theme.accent}"></span>${escape(theme.name)}${favorites.includes(theme.id) ? ' ♥' : ''}</button>`).join('');
     for (const button of byId('mobile-theme-grid').querySelectorAll('[data-theme]')) button.onclick = () => {
       preferences[state.mode === 'home' ? 'homeTheme' : 'desktopTheme'] = button.dataset.theme;
+      preferences.themePreferences[state.mode] = { ...choice, preset: button.dataset.theme, accent: null };
       persist(); applyTheme(); renderThemes();
     };
   }
+  function updateAppearance() { persist(); applyTheme(); renderThemes(); }
+  byId('theme-category').onchange = renderThemes;
+  byId('theme-search').oninput = renderThemes;
+  byId('theme-pattern').innerHTML = patterns.map(p => `<option>${p}</option>`).join('');
+  byId('theme-pattern').onchange = event => { preferences.themePreferences[state.mode].pattern = event.target.value; updateAppearance(); };
+  byId('theme-accent').onchange = event => { preferences.themePreferences[state.mode].accent = event.target.value; updateAppearance(); };
+  byId('theme-reset-accent').onclick = () => { preferences.themePreferences[state.mode].accent = null; updateAppearance(); };
+  byId('theme-favorite').onclick = () => {
+    const id = themeFor().id, list = preferences.themePreferences.favorites;
+    preferences.themePreferences.favorites = list.includes(id) ? list.filter(t => t !== id) : [...list, id]; updateAppearance();
+  };
+  byId('theme-save-form').onsubmit = event => {
+    event.preventDefault(); const name = byId('theme-save-name').value.trim().slice(0, 32);
+    if (!name) return;
+    const list = preferences.themePreferences.saved, index = list.findIndex(t => t.name === name);
+    const item = { name, choice: { ...preferences.themePreferences[state.mode] } };
+    if (index >= 0) list[index] = item;
+    else if (list.length < 16) list.push(item);
+    else { report('You can save up to 16 themes. Remove a saved theme first.'); return; }
+    updateAppearance(); report('Theme saved.');
+  };
+  byId('theme-saved').onchange = event => { const item = preferences.themePreferences.saved[Number(event.target.value)]; if (event.target.value !== '' && item) { preferences.themePreferences[state.mode] = { ...item.choice }; byId('theme-save-name').value = item.name; updateAppearance(); } };
+  byId('theme-delete-saved').onclick = () => { const name = byId('theme-save-name').value.trim(); preferences.themePreferences.saved = preferences.themePreferences.saved.filter(t => t.name !== name); updateAppearance(); };
+  byId('theme-export').onclick = () => downloadJson('nxi-themes.json', desktopThemeFile(preferences.themePreferences));
+  byId('theme-import').onchange = async event => {
+    try {
+      const file = event.target.files[0]; if (!file) return;
+      if (file.size > 1024 * 1024) throw new Error('Theme files must be smaller than 1 MiB.');
+      const value = JSON.parse(await file.text());
+      if (!value || typeof value !== 'object' || !(value.home || value.Home || value.desktop || value.Desktop)) throw new Error('Choose an NXI theme preferences export.');
+      preferences.themePreferences = normalizeThemes(value); updateAppearance(); report('Desktop theme preferences imported.');
+    } catch (error) { report(error.message); } finally { event.target.value = ''; }
+  };
   async function loadCharacters() {
     if (characters.loaded) return;
     if (characters.loading) return characters.loading;
@@ -372,7 +423,7 @@ export function initializeMobileShell() {
   addEventListener('pagehide', () => { clearInterval(state.timer); state.timer = null; clearInterval(clockTimer); clockTimer = null; });
   addEventListener('pageshow', () => { startRefresh(); if (!clockTimer) clockTimer = setInterval(clock, 60000); clock(); void refresh(true); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { clock(); void refresh(); } });
-  shell = { refresh, attach(api) { state.api = api; startRefresh(); synchronize(); void refresh(true); return shell; } };
+  shell = { refresh, attach(api) { state.api = api; startRefresh(); synchronize(); void refresh(true); void coreSettings.refresh(); return shell; } };
   showPage('library');
   return shell;
 }

@@ -26,6 +26,17 @@ struct V { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 @fragment fn fs(v: V) -> @location(0) vec4f { return vec4f(textureSample(src, smp, v.uv).rgb, 1.0); }`;
 
 self.onmessage = async ({ data }) => {
+  if (data.type === 'memory-snapshot') {
+    self.postMessage({ type: 'memory-snapshot', requestId: data.requestId, snapshot: {
+      at: new Date().toISOString(), buffers: buffers.size,
+      bufferAllocationBytes: [...buffers.values()].reduce((sum, entry) => sum + entry.buffer.size, 0),
+      ownedTextures: [...textures.values()].filter(entry => entry.owner).length,
+      textureViews: [...textures.values()].filter(entry => !entry.owner).length,
+      samplers: samplers.size, programs: programs.size, physicalGpuBytes: null,
+      note: 'Tracked guest GPU resources only. Buffer bytes are requested allocations; driver overhead, internal staging, texture residency and physical GPU memory are not exposed.'
+    } });
+    return;
+  }
   if (started) return;
   started = true;
   try {

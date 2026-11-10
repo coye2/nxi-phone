@@ -8,7 +8,7 @@ import { restoreJitCache, keepJitCache } from './jit-cache.js';
 import { restoreSetup, saveKeys, saveFirmware, restoreFirmware } from './setup.js';
 import { startAudio } from './audio.js';
 import { startSessionView } from './session-view.js';
-import { exportDiagnostics, phase } from './diagnostics.js';
+import { exportDiagnostics, phase, createStartupDiagnostics } from './diagnostics.js';
 import { configureRuntimeDelivery } from './runtime-delivery.js';
 
 const message = document.getElementById('message');
@@ -19,11 +19,12 @@ const explain = text => /unknown transient reason/i.test(text)
   : text;
 const tell = text => { text = explain(text); phase(text); message.textContent = text; reportMobileStatus(text); console.log('NXI-UI ' + text); };
 let activeApi = null;
+const startup = createStartupDiagnostics();
 const diagnostics = document.getElementById('export-diagnostics');
 diagnostics.disabled = false;
 diagnostics.onclick = async () => {
   diagnostics.disabled = true;
-  try { await exportDiagnostics(activeApi); }
+  try { await exportDiagnostics(activeApi, startup); }
   catch (error) { document.getElementById('setup-message').textContent = 'Diagnostics could not be exported: ' + error.message; }
   finally { diagnostics.disabled = false; }
 };
@@ -49,11 +50,13 @@ globalThis.nxiSpawnCpuWorker = mailbox => {
   worker.postMessage({ memory: globalThis.nxiWasmMemory, mailbox }); cpuWorkers.push(worker);
 };
 let ioWorker, storageReady;
+globalThis.nxiWorkerCounters = () => ({ cpuWorkersCreated: cpuWorkers.length, storageWorkerCreated: ioWorker ? 1 : 0 });
 globalThis.nxiStartIoWorker = mailbox => {
   storageReady = new Promise((resolve, reject) => {
     const fail = message => {
       Atomics.store(new Int32Array(globalThis.nxiWasmMemory.buffer), mailbox >>> 2, 3);
       ioWorker?.terminate(); reject(new Error(message)); tell(message);
+      ioWorker = null;
     };
     ioWorker = new Worker(new URL('./nxi-io-worker.js', import.meta.url), { name: 'NXI storage' });
     const timer = setTimeout(() => fail('Local storage did not start. Reload NXI to retry.'), 10000);
@@ -72,6 +75,7 @@ globalThis.nxiSetFullScreen = on => {
 };
 
 try {
+  startup.phase('offline-installation');
   // The offline worker also supplies isolation on hosts without COOP/COEP headers.
   let registration, offlineError;
   const offlineStatus = text => {
@@ -87,6 +91,7 @@ try {
   if (!crossOriginIsolated && !registration && offlineError) throw offlineError;
   if (!crossOriginIsolated && registration) {
     // Use this registration's active build even when a newer update is waiting.
+    startup.phase('isolation');
     await waitForOfflineActivation(registration);
     if (!sessionStorage.getItem('nxi-launcher-isolation-reload')) {
       sessionStorage.setItem('nxi-launcher-isolation-reload', '1');
@@ -131,20 +136,26 @@ try {
     }, 25000);
   };
   watchStartup('loading runtime');
+  startup.phase('runtime-module');
   const { dotnet } = await import('./_framework/dotnet.js');
+  startup.phase('runtime-delivery');
   const runtimeBuilder = await configureRuntimeDelivery(dotnet);
   const dumpShaders = new URLSearchParams(location.search).has('dumpShaders');
   // Fewer, larger minor GCs. Each GC has to stop ~50 threads, and the multithreaded WebAssembly
   // runtime sometimes never gets the finalizer thread to stop (the page freezes or aborts with
   // mono-threads.c:336). A bigger nursery makes that race much rarer.
+  startup.phase('runtime-create');
   const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_RENDER', uiRender).withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
   clearInterval(startTicker); phase('runtime created'); watchStartup('runtime created');
+  startup.phase('runtime-exports');
   const api = (await runtime.getAssemblyExports(runtime.getConfig().mainAssemblyName)).NxInfinity.BrowserLauncher;
   activeApi = api;
+  startup.phase('device-restore');
   let restoreWarning = null;
   try { await restoreDeviceState(api, tell); }
   catch (error) { restoreWarning = 'Saved data could not be restored: ' + error.message; }
   phase('runtime main starting');
+  startup.phase('runtime-main');
   await runtime.runMain();
   phase('runtime main started'); watchStartup(null);
   globalThis.nxi = { runtime, api, saveDeviceState: () => saveDeviceState(api, { force: true, report: tell }) };
@@ -185,7 +196,9 @@ try {
   let jitRestore = Promise.resolve(0);
   globalThis.nxi.saveJitCache = keepJitCache(api);
   const button = document.getElementById('import'), picker = document.getElementById('file');
+  startup.phase('storage');
   await api.PrepareStorage(); await storageReady;
+  startup.phase('setup-restore');
   const setupWarnings = restoreWarning ? [restoreWarning] : [];
   try {
     const restoredSetup = await restoreSetup(api);
@@ -198,6 +211,7 @@ try {
       setupWarnings.push('NXI closed while restoring your firmware last time, most likely because the phone ran out of memory. It was not restored this time, so homebrew still works. Open Setup and import the firmware again to retry.');
     }
   } catch {}
+  startup.phase('library-restore');
   const restored = await restoreLibrary(api, count => tell(`Restoring library · ${count} games`));
   // Restored metadata is visible before OPFS streams are registered. Refresh now
   // so the first tap uses Play rather than a stale "review this file" action.
@@ -409,9 +423,11 @@ try {
     .observe(game, { attributes: true, attributeFilter: ['hidden'] });
   // WebGPU first: the GPU worker owns the canvas and draws frames itself. If the browser has
   // no WebGPU, fall back to copying frames into a 2D canvas here.
+  startup.phase('graphics');
   const ringAddress = (await api.GpuRingAddress()) >>> 0;
   const gpu = new GpuPresentation({ canvas, memory: globalThis.nxiWasmMemory, address: ringAddress, timeoutMs: 30000,
     workerUrl: new URL('./nxi-gpu-worker.js', import.meta.url), readback: new URLSearchParams(location.search).get('gpu') === 'readback' });
+  globalThis.nxiReadGpuMemory = () => gpu.memorySnapshot();
   if (navigator.gpu && canvas.transferControlToOffscreen && new URLSearchParams(location.search).get('gpu') !== '0')
     await gpu.start();
   jitRestore = restoreJitCache(api).then(n => { if (n) console.log('NXI jit cache restored: ' + (n / 1048576).toFixed(1) + ' MB'); return n; })
@@ -468,12 +484,15 @@ try {
   };
   // Do not let the first tap create a CPU-only renderer while WebGPU is still
   // starting, or translate the game before its persistent CPU cache is restored.
+  startup.phase('cpu-cache');
   await jitRestore;
   await api.MarkRuntimeReady();
+  startup.finish();
   button.disabled = false;
   for (const id of ['choose-keys', 'choose-firmware', 'choose-firmware-folder', 'classic-mode']) document.getElementById(id).disabled = false;
   tell(setupWarnings.length ? 'Setup needs attention. Open Setup for details.' : `Ready · ${restored.restored} saved files${restored.skipped ? ` · ${restored.skipped} need attention` : ''}`);
 } catch (e) {
+  startup.finish(true);
   const failure = e.message || String(e);
   tell(failure);
   reportMobileStatus(failure, { error: true });

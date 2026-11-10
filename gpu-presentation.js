@@ -22,6 +22,10 @@ export class GpuPresentation {
         this.timer = setTimeout(() => this.disable('WebGPU startup timed out'), this.timeoutMs);
         this.worker.onmessage = ({ data }) => {
           if (this.failed) return;
+          if (data.type === 'memory-snapshot') {
+            if (data.requestId === this.memoryRequest?.id) this.memoryRequest.finish(data.snapshot);
+            return;
+          }
           if (data.frame) { this.showReadback(data); return; }
           if (data.ready && Atomics.load(this.header, 3) === 1) {
             this.ready = true;
@@ -52,6 +56,17 @@ export class GpuPresentation {
     this.canvas.getContext('2d').putImageData(new ImageData(frame, width, height), 0, 0);
   }
 
+  memorySnapshot() {
+    if (!this.ready || this.failed) return Promise.resolve(null);
+    if (this.memoryRequest) return this.memoryRequest.promise;
+    const id = (this.memorySequence ?? 0) + 1; this.memorySequence = id;
+    let finish;
+    const promise = new Promise(resolve => { finish = value => { clearTimeout(this.memoryRequest?.timer); this.memoryRequest = null; resolve(value); }; });
+    this.memoryRequest = { id, promise, finish, timer: setTimeout(() => finish(null), 1000) };
+    try { this.worker.postMessage({ type: 'memory-snapshot', requestId: id }); } catch { finish(null); }
+    return promise;
+  }
+
   // The managed producer can disable the ring on timeout without a JS message.
   poll() {
     if (this.ready && Atomics.load(this.header, 3) !== 1) this.disable('WebGPU command queue stopped');
@@ -66,6 +81,7 @@ export class GpuPresentation {
     Atomics.store(this.header, 3, 0);
     Atomics.notify(this.header, 0);
     this.worker?.terminate();
+    this.memoryRequest?.finish(null);
     // A transferred canvas cannot acquire a 2D context, even after its worker dies.
     if (this.transferred) {
       const fresh = this.canvas.cloneNode();
