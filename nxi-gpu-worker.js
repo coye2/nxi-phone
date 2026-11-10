@@ -43,7 +43,7 @@ self.onmessage = async ({ data }) => {
   if (data.type === 'memory-snapshot') {
     self.postMessage({ type: 'memory-snapshot', requestId: data.requestId, snapshot: {
       at: new Date().toISOString(), capabilities, shaderHealth: { ...shaderHealth },
-      commandHealth: { received: receivedCommands, last: lastCommand, counts: { ...commandCounts },
+      commandHealth: { scope: 'gpu-worker-lifetime', received: receivedCommands, last: lastCommand, counts: { ...commandCounts },
         meaning: 'Commands observed after ring-envelope validation, before dispatch; includes rejected or skipped work. Not GPU completion or frame correctness.' },
       buffers: buffers.size,
       bufferAllocationBytes: [...buffers.values()].reduce((sum, entry) => sum + entry.buffer.size, 0),

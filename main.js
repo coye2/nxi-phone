@@ -232,9 +232,14 @@ try {
   const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => {
     await ensureFirmware(); const attempt = ++playAttempt; playPending = true;
     phase('Play pressed'); const stopWatching = watchPlay();
-    try { const r = await target.Play(id); phase('Play started'); return r; }
+    try {
+      let result;
+      try { result = await target.Play(id); }
+      finally { stopWatching(); }
+      phase('Play started'); return result;
+    }
     catch (error) { phase('Play failed before the guest started', true); throw error; }
-    finally { if(attempt===playAttempt)playPending=false; stopWatching(); }
+    finally { if(attempt===playAttempt)playPending=false; }
   } : target[key] });
   globalThis.nxi.api = playApi;
   const mobile = startMobile(playApi);
@@ -244,6 +249,7 @@ try {
   // (restored after the GPU worker is up: a big cache keeps the main thread busy for a while)
   let jitRestore = Promise.resolve(0);
   globalThis.nxi.saveJitCache = keepJitCache(api);
+  globalThis.nxiReadJitCache = globalThis.nxi.saveJitCache.snapshot;
   const button = document.getElementById('import'), picker = document.getElementById('file');
   startup.phase('storage');
   await api.PrepareStorage(); await storageReady;

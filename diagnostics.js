@@ -5,13 +5,22 @@
 // Earlier runs are kept too (newest first), so an export after reopening still shows the attempt.
 const TRAIL = 'nxi-phase-trail', PREVIOUS = 'nxi-previous-run', EARLIER = 'nxi-earlier-runs';
 const LAST_PLAY = 'nxi-last-play-trail';
+const PLAY_MILESTONES = ['boundary', 'completedBoundary', 'prerequisiteBegin', 'prerequisiteComplete', 'operation', 'loader', 'outcome'];
+function restoreMilestones(value) {
+  return Object.fromEntries(PLAY_MILESTONES.flatMap(key => {
+    const entry = value?.[key];
+    return entry && typeof entry.step === 'string' && entry.step.length <= 180 &&
+      typeof entry.at === 'string' && entry.at.length <= 40 && Number.isFinite(entry.seconds)
+      ? [[key, {step:entry.step, at:entry.at, seconds:entry.seconds}]] : [];
+  }));
+}
 const started = Date.now();
 let previousRun = null, earlierRuns = [], trail = [];
 let lastPlay = null, recordingPlay = false;
 try {
   const saved = JSON.parse(localStorage.getItem(LAST_PLAY) || 'null');
   if (saved && typeof saved.startedAt === 'string' && Array.isArray(saved.trail))
-    lastPlay = { startedAt: saved.startedAt, buildIdentity: 'not-captured', trail: saved.trail.slice(-80) };
+    lastPlay = { startedAt: saved.startedAt, buildIdentity: 'not-captured', trail: saved.trail.slice(-80), milestones: restoreMilestones(saved.milestones) };
 } catch {}
 try {
   const last = JSON.parse(localStorage.getItem(TRAIL) || '[]');
@@ -33,7 +42,7 @@ export function phase(name, distinct = false) {
   const entry = { step: String(name).slice(0, 180), at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 100) / 10 };
   if (entry.step === 'Play pressed') {
     recordingPlay = true;
-    lastPlay = { startedAt: entry.at, buildIdentity: 'not-captured', trail: [] };
+    lastPlay = { startedAt: entry.at, buildIdentity: 'not-captured', trail: [], milestones: {} };
   }
   // Progress lines ("· 4%", "1:05") update in place instead of pushing everything else out.
   // Launch boundaries stay distinct: their counters change, and collapsing them hides the last completed stage.
@@ -48,6 +57,18 @@ export function phase(name, distinct = false) {
   // Startup-only manual reopens must not evict the last actual Play attempt.
   // Its build is deliberately unknown; never assign the newly opened page's build.
   if (recordingPlay) {
+    // Health/sample alternation can fill the rolling trail during a long wait.
+    // Keep a fixed number of named observations independently, owned by this
+    // Play attempt; they cannot be displaced by polling or startup-only reopens.
+    const milestones = lastPlay.milestones;
+    if (entry.step.startsWith('boundary ')) {
+      milestones.boundary = entry;
+      if (/^boundary [a-z0-9_.-]+\.complete:/.test(entry.step)) milestones.completedBoundary = entry;
+    } else if (/^prerequisite: .* begin$/.test(entry.step)) milestones.prerequisiteBegin = entry;
+    else if (/^prerequisite: .* complete$/.test(entry.step)) milestones.prerequisiteComplete = entry;
+    else if (entry.step.startsWith('operation: ')) milestones.operation = entry;
+    else if (entry.step.startsWith('loader: ')) milestones.loader = entry;
+    else if (entry.step === 'Play started' || entry.step === 'Play failed before the guest started') milestones.outcome = entry;
     lastPlay.trail = trail.slice(-80);
     try { localStorage.setItem(LAST_PLAY, JSON.stringify(lastPlay)); } catch {}
     if (entry.step === 'Play started' || entry.step === 'Play failed before the guest started') recordingPlay = false;
@@ -246,7 +267,7 @@ export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000
       screen: globalThis.screen ? [screen.width, screen.height, globalThis.devicePixelRatio] : null },
     thisRun: trail.slice(), previousRun, earlierRuns, lastPlay,
     startup: startupSnapshot,
-    session: null, core: null, execution: null, cpuMailboxes: null, gpuRing: null, gpuWorker: null,
+    session: null, core: null, execution: null, cpuMailboxes: null, gpuRing: null, gpuWorker: null, jitCache: null,
     errors: [], offlineBuild: null, availableOfflineBuild: null,
     qualification: { retailGameVerified: false, physicalPhoneVerified: false },
   };
@@ -264,6 +285,7 @@ export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000
   } else report.errors.push('Execution diagnostics were unavailable.');
   try {report.gpuRing = globalThis.nxiReadGpuRing?.() ?? null;} catch {}
   try {report.cpuMailboxes = globalThis.nxiReadCpuMailboxes?.() ?? null;} catch {}
+  try {report.jitCache = globalThis.nxiReadJitCache?.() ?? null;} catch {}
   if(results[3].status === 'fulfilled')report.gpuWorker=results[3].value;
   else report.errors.push('GPU worker diagnostics were unavailable.');
   await Promise.all(['precache.json', 'build-info.json'].map(async file => {

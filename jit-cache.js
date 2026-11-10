@@ -18,18 +18,28 @@ export async function restoreJitCache(api) {
 
 export function keepJitCache(api) {
   let saving = false, lastCount = 0;
+  let stage = 'idle', startedAt = null, savedBytes = 0;
   const save = async () => {
     if (saving) return; saving = true;
+    startedAt = Date.now(); stage = 'count';
     try {
       const count = await api.JitCacheCount();
-      if (count === lastCount) return;
-      const bytes = Uint8Array.from(atob(await api.JitCacheExport()), c => c.charCodeAt(0));
-      const h = await handle(true); if (!h) return;
+      if (count === lastCount) { stage = 'unchanged'; return; }
+      stage = 'native-export';
+      const encoded = await api.JitCacheExport();
+      stage = 'decode';
+      const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+      stage = 'storage-open';
+      const h = await handle(true); if (!h) { stage = 'storage-unavailable'; return; }
+      stage = 'storage-write';
       const w = await h.createWritable(); await w.write(bytes); await w.close();
-      lastCount = count;
-    } catch (e) { console.warn('NXI jit cache save failed: ' + (e.message || e)); }
+      lastCount = count; savedBytes = bytes.length; stage = 'saved';
+    } catch (e) { stage = 'failed'; console.warn('NXI jit cache save failed: ' + (e.message || e)); }
     finally { saving = false; }
   };
+  save.snapshot = () => ({ scope: 'page-local', stage, pending: saving,
+    pendingMs: saving ? Math.max(0, Date.now() - startedAt) : null,
+    savedEntries: lastCount, savedBytes });
   setInterval(save, 60000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
   addEventListener('pagehide', save);
