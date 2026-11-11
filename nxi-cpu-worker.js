@@ -1,13 +1,13 @@
 // NXI Mobile CPU worker: executes WASM translated from guest ARM64 by Kenji's
 // ARMeilleure front end. Imports the runtime's shared memory; talks to its guest
 // host thread only through the mailbox (see ARMeilleure WasmAbi).
-const STATE = 0, KIND = 4, HELPER = 8, MODLEN = 12, PC = 16, CTX = 24, MODPTR = 32, GEN = 40, MODHOT = 44;
+const STATE = 0, KIND = 4, HELPER = 8, MODLEN = 12, PC = 16, CTX = 24, MODPTR = 32, GEN = 40, MODHOT = 44, BLOCK_PC = 200;
 const RUN = 1, BUSY = 2, REQUEST = 3, REPLY = 4;
 const KIND_EXIT = 1, KIND_TRANSLATE = 2, KIND_CALL = 3, KIND_FAULT = 4, KIND_TRANSLATE_HOT = 5;
 // Entries run this many times before their whole region is re-translated (tier 1).
 const HOT_THRESHOLD = 256;
 
-let memory, mbox, i32, view, mboxGlobal, generation = -1;
+let memory, mbox, i32, view, mboxGlobal, generation = -1, blockPc = 0n;
 const cache = new Map();
 // Each translated block is its own WebAssembly module, and WebKit (iOS) keeps about 7 KB per
 // module; games run tens of thousands of blocks once (boot, loading) and never again. Keep the
@@ -67,6 +67,9 @@ function request(kind) {
 function rpc(id) {
   const t = performance.now();
   refresh();
+  // Block entry of the dispatch loop. Newer translations also store the
+  // instruction address at mailbox+192 before this call.
+  view.setBigUint64(mbox + BLOCK_PC, blockPc, true);
   i32[(mbox + HELPER) >>> 2] = id;
   request(KIND_CALL);
   stats.rpcs++; stats.rpcMs += performance.now() - t;
@@ -121,6 +124,7 @@ function serve() {
     let pc = view.getBigUint64(mbox + PC, true);
     try {
       while (pc !== 0n) {
+        blockPc = pc;
         pc = BigInt.asUintN(64, lookup(pc)(ctx));
         stats.blocks++;
         if ((stats.blocks & 1023) === 0) report();

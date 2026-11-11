@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "9528e94c2a5e95dd06e4c73a28063233eacd20df",
-    "nativeSourceCommit":  "9528e94c2a5e95dd06e4c73a28063233eacd20df",
-    "previousDeployment":  "b44799f781be55fe696cd7eaacd18ffe5c03dc97",
+    "sourceCommit":  "1e6fbeefd83728f6dba86134566306cb73fd0ed2",
+    "nativeSourceCommit":  "1e6fbeefd83728f6dba86134566306cb73fd0ed2",
+    "previousDeployment":  "b277e4465734eac31ab934280a8519fd627ad3ee",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -67,10 +67,17 @@
                     "Run browser GPU macros that miss the HLE table in the interpreter",
                     "Reject saved CPU translations compiled for the flat page table",
                     "Run 32-bit ARM and Thumb games in the browser CPU, switching modes on BX/BLX like the desktop core",
-                    "Pass 32-bit helper arguments zero-extended so 32-bit memory slow paths see the right address"
+                    "Pass 32-bit helper arguments zero-extended so 32-bit memory slow paths see the right address",
+                    "Crash location in exports",
+                    "Plain-language errors",
+                    "Saved 32-bit translations",
+                    "Controller hides touch overlay",
+                    "Compatibility labels",
+                    "Fast reads of write-tracked pages",
+                    "16-byte atomics",
+                    "Firmware unpacks only what the core reads"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-11T09:44:29.8634688Z",
-    "browserAndHleJavaScriptChecksPassed":  362,
-    "browserA32ChecksPassed":  12
+    "builtAt":  "2026-11-11T14:10:33.8004256Z",
+    "browserAndHleJavaScriptChecksPassed":  362
 }

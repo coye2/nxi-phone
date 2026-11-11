@@ -1,4 +1,5 @@
 import { restoreDeviceState, saveDeviceState } from './device-state.js';
+import { playerMessage } from './friendly-errors.js';
 import { registerOffline, waitForOfflineActivation } from './offline.js';
 import { initializeMobileShell, reportMobileStatus, startMobile } from './mobile.js';
 import { GpuPresentation } from './gpu-presentation.js';
@@ -19,7 +20,7 @@ initializeMobileShell();
 // Safari answers every on-device storage call this way in Private Browsing.
 const explain = text => /unknown transient reason/i.test(text)
   ? 'This browser blocked on-device storage, so Mochi can\'t keep games here. Private Browsing does this: open Mochi in a normal tab or from your Home Screen. (' + text + ')'
-  : text;
+  : playerMessage(text);
 const tell = text => { text = explain(text); phase(text); message.textContent = text; reportMobileStatus(text); console.log('NXI-UI ' + text); };
 let activeApi = null;
 const startup = createStartupDiagnostics();

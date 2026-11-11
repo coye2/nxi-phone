@@ -43,6 +43,12 @@ export function startInput(api, game) {
   game.appendChild(pad);
   const resetStick=side=>{sticks[side]={x:0,y:0};const el=pad.querySelector(`[data-stick="${side}"]`);el.classList.remove('held');el.querySelector('.stick-nub').style.transform='translate(0,0)';};
   const paintButtons=()=>{let bits=0;for(const item of held.values())if(item.kind==='button')bits|=item.key;for(const b of pad.querySelectorAll('[data-k]'))b.classList.toggle('held',!!(bits&K[b.dataset.k]));return bits;};
+  // A controller in use hides the touch overlay so the game gets the whole screen;
+  // touching the game brings the overlay back.
+  let controller=false;
+  const useController=on=>{if(controller===on)return;controller=on;game.classList?.toggle('controller',on);};
+  game.addEventListener?.('pointerdown',e=>{if(e.pointerType!=='mouse')useController(false);},{capture:true});
+  addEventListener('gamepaddisconnected',()=>{if(!(navigator.getGamepads?.()??[]).some(Boolean))useController(false);});
   const reset=()=>{keys=0;held.clear();resetStick('left');resetStick('right');paintButtons();releasePending=true;send(0,0,0,0,0);};
   addEventListener('keydown',e=>{if(active()&&KEYS[e.code]){keys|=KEYS[e.code];e.preventDefault();}});
   addEventListener('keyup',e=>{if(KEYS[e.code]){keys&=~KEYS[e.code];if(active())e.preventDefault();}});
@@ -75,8 +81,12 @@ export function startInput(api, game) {
     let buttons=keys;for(const item of held.values())if(item.kind==='button')buttons|=item.key;
     let lx=sticks.left.x,ly=sticks.left.y,rx=sticks.right.x,ry=sticks.right.y;
     for(const gp of navigator.getGamepads?.()??[]){if(!gp)continue;
-      gp.buttons.forEach((b,i)=>{if(b.pressed&&PAD[i])buttons|=PAD[i];});
-      lx=strongest(lx,axis(gp.axes[0]??0));ly=strongest(ly,-axis(gp.axes[1]??0));rx=strongest(rx,axis(gp.axes[2]??0));ry=strongest(ry,-axis(gp.axes[3]??0));break;
+      let used=false;
+      gp.buttons.forEach((b,i)=>{if(b.pressed&&PAD[i]){buttons|=PAD[i];used=true;}});
+      const glx=axis(gp.axes[0]??0),gly=-axis(gp.axes[1]??0),grx=axis(gp.axes[2]??0),gry=-axis(gp.axes[3]??0);
+      if(glx||gly||grx||gry)used=true;
+      if(used)useController(true);
+      lx=strongest(lx,glx);ly=strongest(ly,gly);rx=strongest(rx,grx);ry=strongest(ry,gry);break;
     }
     send(buttons,lx,ly,rx,ry);requestAnimationFrame(poll);
   })();

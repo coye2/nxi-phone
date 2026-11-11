@@ -1,4 +1,6 @@
 import { noteAppReload } from './diagnostics.js';
+import { compatibilityLabel, failedPlayStatus, recordCompatibility, watchCompatibility } from './compatibility.js';
+import { playerMessage } from './friendly-errors.js';
 import { themes } from './brand-theme.js';
 import { initializeAppViewport } from './app-shell.js';
 import { normalizeThemes, desktopThemeFile, resolvedTheme, patterns, patternImages, downloadJson } from './theme-preferences.js';
@@ -80,7 +82,7 @@ export function initializeMobileShell() {
     try { localStorage.setItem('nxi-web-v1', JSON.stringify({ ...readPreferences(), ...preferences, mode: state.mode, homeFilter: state.filter, selectedGame: state.selected })); return true; }
     catch { reportMobileStatus('This browser could not save your launcher preferences. They will apply for this visit.'); return false; }
   }
-  function report(text) { if (byId('message').textContent !== text) byId('message').textContent = text; reportMobileStatus(text); }
+  function report(text) { text = playerMessage(text); if (byId('message').textContent !== text) byId('message').textContent = text; reportMobileStatus(text); }
   function themeFor(mode = state.mode) { return resolvedTheme(preferences.themePreferences[mode]); }
   function applyTheme() {
     const theme = themeFor();
@@ -152,7 +154,7 @@ export function initializeMobileShell() {
     const grid = byId('mobile-games'); grid.className = isHome ? 'home-rail' : 'tiles'; grid.hidden = !games.length;
     grid.innerHTML = visible.map(entry => {
       const favorite = preferences.favorites.includes(entry.id);
-      const caption = favorite ? 'Favorite' : entry.lastPlayed ? 'Recently played' : 'Imported on this device';
+      const caption = compatibilityLabel(entry.id) ?? (favorite ? 'Favorite' : entry.lastPlayed ? 'Recently played' : 'Imported on this device');
       return isHome ? `<button class="home-game${entry.id === state.selected ? ' selected' : ''}" data-game="${escape(entry.id)}" aria-label="${escape(entry.name)}" aria-pressed="${entry.id === state.selected}"><div class="home-card">${cover(entry)}<div class="home-caption"><h3>${escape(entry.name)}</h3><small>${caption}</small></div></div></button>`
         : `<button class="tile" data-game="${escape(entry.id)}" aria-label="Details for ${escape(entry.name)}">${cover(entry)}<h3>${escape(entry.name)}</h3><small>${caption}</small></button>`;
     }).join('');
@@ -207,7 +209,17 @@ export function initializeMobileShell() {
     if (!entry || !runtimeReady()) return;
     state.busy = true; synchronize(); report((entry.playable ? 'Starting ' : 'Checking ') + entry.name + '…');
     try {
-      if (entry.playable) { await state.api.Play(entry.id); report('Playing ' + entry.name); }
+      if (entry.playable) {
+        try { await state.api.Play(entry.id); }
+        catch (error) { recordCompatibility(entry.id, failedPlayStatus(error)); throw error; }
+        report('Playing ' + entry.name);
+        state.stopCompatibility?.();
+        state.stopCompatibility = watchCompatibility(entry.id, {
+          readStatus: async () => JSON.parse(await state.api.Status()),
+          readDraws: async () => (await globalThis.nxiReadGpuMemory?.())?.commandHealth?.counts?.Draw ?? 0,
+          onChange: () => { if (state.page === 'library') renderLibrary(); },
+        });
+      }
       else { await state.api.InspectMobileContent(entry.id); await refresh(true); report('File checked.'); }
     } catch (error) {
       report(error.message || String(error));

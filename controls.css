@@ -13,6 +13,8 @@
  #game{padding-top:env(safe-area-inset-top)}
  #screen{display:block;height:calc(100% - 390px - env(safe-area-inset-bottom));width:100%;object-fit:contain}
  #touchpad{display:block;position:absolute;inset:auto 0 calc(60px + env(safe-area-inset-bottom));height:330px;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none;z-index:2}
+ #game.controller #touchpad{display:none}
+ #game.controller #screen{height:calc(100% - env(safe-area-inset-bottom))}
  #touchpad button{pointer-events:auto;position:absolute;display:grid;place-items:center;width:44px;height:44px;margin:0;padding:0;border-radius:50%;background:#351225e6;border:1px solid #B7809999;color:#fff;font:600 16px system-ui;touch-action:none;-webkit-tap-highlight-color:transparent}
  #touchpad .held{background-color:#7B0E3Fe6;border-color:#FCB9D7}
  #touchpad .cluster{position:absolute;width:132px;height:132px}
