@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "9a5e709f9fe57a0d229a6da9bc5d30d933239783",
-    "nativeSourceCommit":  "9a5e709f9fe57a0d229a6da9bc5d30d933239783",
-    "previousDeployment":  "4029011874f290f411951a94f749ed2507a132ac",
+    "sourceCommit":  "9528e94c2a5e95dd06e4c73a28063233eacd20df",
+    "nativeSourceCommit":  "9528e94c2a5e95dd06e4c73a28063233eacd20df",
+    "previousDeployment":  "b44799f781be55fe696cd7eaacd18ffe5c03dc97",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -65,12 +65,12 @@
                     "Wait for firmware restore before every Play and keep a failed restore retryable",
                     "Retain each AArch64 SetHeapSize result as success, refusal, or fault without storing the guest address",
                     "Run browser GPU macros that miss the HLE table in the interpreter",
-                    "Reject saved CPU translations compiled for the flat page table"
+                    "Reject saved CPU translations compiled for the flat page table",
+                    "Run 32-bit ARM and Thumb games in the browser CPU, switching modes on BX/BLX like the desktop core",
+                    "Pass 32-bit helper arguments zero-extended so 32-bit memory slow paths see the right address"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-10T21:11:14.7287875Z",
+    "builtAt":  "2026-11-11T09:44:29.8634688Z",
     "browserAndHleJavaScriptChecksPassed":  362,
-    "launchJournalChecksPassed":  9,
-    "mochiThemeChecksPassed":  94,
-    "desktopThemeChecksPassed":  94
+    "browserA32ChecksPassed":  12
 }
