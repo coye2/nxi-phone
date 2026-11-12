@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "1e6fbeefd83728f6dba86134566306cb73fd0ed2",
-    "nativeSourceCommit":  "1e6fbeefd83728f6dba86134566306cb73fd0ed2",
-    "previousDeployment":  "b277e4465734eac31ab934280a8519fd627ad3ee",
+    "sourceCommit":  "698d086019c18aca2a49413679a32834555488c6",
+    "nativeSourceCommit":  "698d086019c18aca2a49413679a32834555488c6",
+    "previousDeployment":  "703c3d09fe1d3976c0238dfd8a622f726823e48a",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -75,9 +75,13 @@
                     "Compatibility labels",
                     "Fast reads of write-tracked pages",
                     "16-byte atomics",
-                    "Firmware unpacks only what the core reads"
+                    "Firmware unpacks only what the core reads",
+                    "Restore saved firmware without re-verifying",
+                    "Stop a torn-down device restore",
+                    "Keep the code around a crash in the export",
+                    "Apply controller input immediately"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-11T14:10:33.8004256Z",
+    "builtAt":  "2026-11-11T23:42:41.3944467Z",
     "browserAndHleJavaScriptChecksPassed":  362
 }

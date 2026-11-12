@@ -17,8 +17,18 @@ function validate(manifest){
  let total=0;const seen=new Set();
  for(const f of manifest.files){if(typeof f.path!=='string'||f.path.length>2048||seen.has(f.path)||!Number.isSafeInteger(f.size)||f.size<0||!/^[a-f0-9]{64}$/i.test(f.sha256))throw Error('Invalid device snapshot entry.');seen.add(f.path);total+=f.size;if(total>LIMIT)throw Error('Device snapshot exceeds the 512 MiB limit.');}
 }
+// WebKit rejects an in-flight restore with this when it discards the page.
+// The OPFS snapshot was not replaced. Callers must not keep playing on a partial copy.
+export function pageIsLeaving(error){
+ return /browsing context is going away/i.test(String(error?.message||''));
+}
 export async function restoreDeviceState(api,report=()=>{}){
- try{return await withLock('shared',()=>restore(api,report));}catch(error){restoreFailed=true;throw error;}
+ try{return await withLock('shared',()=>restore(api,report));}
+ catch(error){
+  // A discarded page must not leave this session free to overwrite the good snapshot
+  // if the page survives (back-forward cache). The saved generation stays put.
+  restoreFailed=true;throw error;
+ }
 }
 async function restore(api,report){
  const dir=await directory(),pointer=await current(dir);if(!pointer){restoredGeneration=null;return false;}
@@ -28,6 +38,9 @@ async function restore(api,report){
   for(let i=0;i<manifest.files.length;i++){
    const item=manifest.files[i],file=await(await generation.getFileHandle(String(i))).getFile();if(file.size!==item.size)throw Error('Saved device data is incomplete.');
    let offset=0;do{const bytes=new Uint8Array(await file.slice(offset,offset+CHUNK).arrayBuffer());await api.WriteDeviceRestore(item.path,offset,bytes);offset+=bytes.byteLength;}while(offset<item.size);
+   // Same sentence shape as the first report, with a count, so a slow restore
+   // can reset the startup stall timer without looking frozen.
+   report(`Restoring saved device data… ${i+1}/${manifest.files.length}`,{files:i+1,total:manifest.files.length});
   }
   await api.CommitDeviceRestore(JSON.stringify(manifest));restoredGeneration=pointer.generation;return true;
  }catch(error){await api.AbortDeviceRestore().catch(()=>{});throw error;}

@@ -141,7 +141,9 @@ export async function restoreSetup(api) {
 }
 
 const FIRMWARE = 'firmware.json';
-const validFirmware = value => value?.version === 1 && /^[a-f0-9]{32}\.zip$/.test(value.id) && Number.isSafeInteger(value.size) && value.size > 0;
+const validFirmwareVersion = value => typeof value === 'string' && value.length > 0 && value.length <= 64 && !/[\u0000-\u001f]/.test(value);
+const validFirmware = value => value?.version === 1 && /^[a-f0-9]{32}\.zip$/.test(value.id) && Number.isSafeInteger(value.size) && value.size > 0
+  && (value.firmwareVersion === undefined || validFirmwareVersion(value.firmwareVersion));
 async function readFirmware(dir) {
   try {
     const file = await (await dir.getFileHandle(FIRMWARE)).getFile();
@@ -202,5 +204,10 @@ export async function restoreFirmware(api, report = () => {}) {
   const data = await (await navigator.storage.getDirectory()).getDirectoryHandle('nxi-games');
   const file = await (await data.getFileHandle(record.id)).getFile();
   if (file.size !== record.size) throw new Error('The saved firmware package changed. Import firmware again.');
+  // Import already checked and verified this package. Restore installs it and the
+  // native side checks the installed version against the saved record. A record
+  // from before that version was stored still takes the full check.
+  if (validFirmwareVersion(record.firmwareVersion) && api.RestoreStoredFirmware)
+    return api.RestoreStoredFirmware(record.id, record.firmwareVersion);
   return api.InstallStoredFirmware(record.id);
 }

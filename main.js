@@ -1,4 +1,4 @@
-import { restoreDeviceState, saveDeviceState } from './device-state.js';
+import { restoreDeviceState, saveDeviceState, pageIsLeaving } from './device-state.js';
 import { playerMessage } from './friendly-errors.js';
 import { registerOffline, waitForOfflineActivation } from './offline.js';
 import { initializeMobileShell, reportMobileStatus, startMobile } from './mobile.js';
@@ -180,8 +180,41 @@ try {
   activeApi = api;
   startup.phase('device-restore');
   let restoreWarning = null;
-  try { await restoreDeviceState(api, tell); }
-  catch (error) { restoreWarning = 'Saved data could not be restored: ' + error.message; }
+  try {
+    await restoreDeviceState(api, (text, progress) => {
+      tell(text);
+      // A large snapshot on a phone can take longer than the startup stall window.
+      // Chunks are progress. A call that never returns still trips the stall timer.
+      if (progress) watchStartup('device-restore');
+    });
+    try { sessionStorage.removeItem('nxi-device-restore-reloads'); } catch {}
+  }
+  catch (error) {
+    if (pageIsLeaving(error)) {
+      // The saved snapshot was not replaced. Do not continue on a half-applied
+      // copy, and do not tell the player the data is damaged. A page that is
+      // still here (or comes back from the back-forward cache) starts over.
+      watchStartup(null);
+      phase('device restore interrupted because this page is closing');
+      const retry = () => {
+        let stalls = 0; try { stalls = +(sessionStorage.getItem('nxi-device-restore-reloads') ?? 0); } catch {}
+        if (stalls >= 2) {
+          tell('Saved data could not be restored because this page was closed while restoring. Close Mochi fully and open it again.');
+          return;
+        }
+        try { sessionStorage.setItem('nxi-device-restore-reloads', String(stalls + 1)); } catch {}
+        noteAppReload('device-restore-interrupted');
+        location.reload();
+      };
+      if (document.visibilityState === 'hidden') {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') retry();
+        }, { once: true });
+      } else retry();
+      await new Promise(() => {});
+    }
+    restoreWarning = 'Saved data could not be restored: ' + error.message;
+  }
   phase('runtime main starting');
   void capturePlayBuild();
   startup.phase('runtime-main');
