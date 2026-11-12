@@ -290,8 +290,34 @@ try {
     const stop = () => { clearInterval(timer); observer.dispose(); copyBoundary(); };
     return stop;
   };
+  // iPhone/iPad: grow the page memory for the guest block in 64 MiB steps before the first
+  // Play, instead of one ~1.6 GiB jump inside the core. Safari reloaded the page at that
+  // jump. New pages are zero and untouched, so the core still skips clearing them. The
+  // target stays 96 MiB under what the core needs (640 MiB runtime hold + guest memory):
+  // Emscripten may already have that much spare, and the core grows any remainder itself.
+  // Each step is logged, so a reload shows how far it got.
+  let guestMemoryPrepared = !iOS || Number(guestDramMiB) >= 2048;
+  async function prepareGuestMemory() {
+    if (guestMemoryPrepared) return;
+    guestMemoryPrepared = true;
+    const memory = globalThis.nxiWasmMemory, MiB = 1024 * 1024, step = 64 * MiB;
+    if (!memory?.grow) return;
+    // Let Safari collect what the firmware restore left behind before growing.
+    await new Promise(resolve => setTimeout(resolve, 750));
+    const start = memory.buffer.byteLength;
+    const target = Math.min(start + (640 + Number(guestDramMiB) - 96) * MiB, 4096 * MiB - step);
+    const total = Math.round((target - start) / MiB);
+    phase(`Preparing memory… 0/${total} MiB`);
+    try {
+      while (memory.buffer.byteLength + step <= target) {
+        memory.grow(step / 65536);
+        phase(`Preparing memory… ${Math.round((memory.buffer.byteLength - start) / MiB)}/${total} MiB`);
+        await new Promise(resolve => setTimeout(resolve, 16));
+      }
+    } catch (error) { phase('Preparing memory stopped: ' + (error?.message ?? error)); }
+  }
   const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => {
-    await ensureFirmware(); const attempt = ++playAttempt; playPending = true;
+    await ensureFirmware(); await prepareGuestMemory(); const attempt = ++playAttempt; playPending = true;
     copyBoundary(); phase('Play pressed'); const stopWatching = watchPlay();
     try {
       let result;

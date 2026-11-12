@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "binaryBytes": 51666652,
-  "sha256": "18387a68331564ae682301c3acfafb92784d3a6179bc44f4bdd7ab1fe6ce6d4a",
-  "definedFunctions": 176898,
+  "binaryBytes": 51667421,
+  "sha256": "f34d8bbe059f6f6ce6799307eb29c0c89a2ce75ade914928daf05f3d0677ee3d",
+  "definedFunctions": 176901,
   "importedFunctions": 500,
-  "tableInitialEntries": 160494,
+  "tableInitialEntries": 160497,
   "note": "Counts measured from the shipped native binary. Binary size is not resident compiled-code size; per-instance overhead remains a scenario assumption."
 }
