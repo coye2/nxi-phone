@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "698d086019c18aca2a49413679a32834555488c6",
-    "nativeSourceCommit":  "698d086019c18aca2a49413679a32834555488c6",
-    "previousDeployment":  "703c3d09fe1d3976c0238dfd8a622f726823e48a",
+    "sourceCommit":  "4026dca7b1aa75f64051638268dfb0c11af00b79",
+    "nativeSourceCommit":  "4026dca7b1aa75f64051638268dfb0c11af00b79",
+    "previousDeployment":  "c7fbf288dab139921287c36ac7d385e7d6f4e11b",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -79,9 +79,10 @@
                     "Restore saved firmware without re-verifying",
                     "Stop a torn-down device restore",
                     "Keep the code around a crash in the export",
-                    "Apply controller input immediately"
+                    "Apply controller input immediately",
+                    "iPhone/iPad guest memory 1024 MiB (?dram= override)"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-11T23:42:41.3944467Z",
+    "builtAt":  "2026-11-12T06:48:44.3524444Z",
     "browserAndHleJavaScriptChecksPassed":  362
 }

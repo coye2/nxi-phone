@@ -148,6 +148,9 @@ try {
   // Avalonia's default elsewhere. ?render=gl or ?render=software overrides it for testing.
   const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const uiRender = new URLSearchParams(location.search).get('render') ?? (iOS ? 'software' : 'gl');
+  // Guest memory: 1024 MiB on iPhone/iPad (Safari reloaded the page after the 2048 MiB block grew
+  // the heap), 2048 elsewhere. ?dram=<768-2048> overrides it for testing.
+  const guestDramMiB = new URLSearchParams(location.search).get('dram') ?? (iOS ? '1024' : '2048');
   phase('loading runtime (ui ' + uiRender + ')');
   // Startup watchdog: on WebKit the .NET runtime very occasionally never finishes starting (a
   // completion between its threads is lost). If a startup step stalls, reload; at most twice.
@@ -173,7 +176,7 @@ try {
   // runtime sometimes never gets the finalizer thread to stop (the page freezes or aborts with
   // mono-threads.c:336). A bigger nursery makes that race much rarer.
   startup.phase('runtime-create');
-  const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_RENDER', uiRender).withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
+  const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_RENDER', uiRender).withEnvironmentVariable('NXI_DRAM_MIB', guestDramMiB).withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
   clearInterval(startTicker); phase('runtime created'); watchStartup('runtime created');
   startup.phase('runtime-exports');
   const api = (await runtime.getAssemblyExports(runtime.getConfig().mainAssemblyName)).NxInfinity.BrowserLauncher;
