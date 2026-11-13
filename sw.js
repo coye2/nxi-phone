@@ -1,5 +1,5 @@
 // Staging replaces BUILD with a content-derived version. Never mix running builds.
-const BUILD = '0587e6de3acfc406';
+const BUILD = '28058537ddcd09b6';
 const PREFIX = 'nxi-browser-launcher-';
 const CACHE = PREFIX + BUILD;
 const scope = new URL('./', self.location.href);
@@ -111,6 +111,11 @@ self.addEventListener('install', event => event.waitUntil((async () => {
     throw failure;
   }
 })()));
+// Auto-test asks an installed update to take over, only while no game is running.
+self.addEventListener('message', event => {
+  // The page posts this to registration.waiting, so only the waiting worker receives it.
+  if (event.data?.type === 'nxi-activate-waiting') self.skipWaiting();
+});
 self.addEventListener('activate', event => event.waitUntil((async () => {
   for (const key of await caches.keys()) if (key.startsWith(PREFIX) && key !== CACHE) await caches.delete(key);
   await self.clients.claim();

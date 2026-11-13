@@ -8,6 +8,7 @@ import { importToLibrary, restoreLibrary } from './library.js';
 import { restoreJitCache, keepJitCache } from './jit-cache.js';
 import { restoreSetup, saveKeys, saveFirmware, restoreFirmware } from './setup.js';
 import { startAudio } from './audio.js';
+import { autotestLabel, configureAutotest, runAutotest } from './autotest.js';
 import { startSessionView } from './session-view.js';
 import { exportDiagnostics, phase, noteAppReload, recordBoundary, drainBoundary, drainLoaderJournal, capturePlayBuild, formatPlaySample, createStartupDiagnostics, createPlayStatusObserver } from './diagnostics.js';
 import { configureRuntimeDelivery } from './runtime-delivery.js';
@@ -37,6 +38,9 @@ diagnostics.onclick = gameDiagnostics.onclick = async () => {
   }
   finally { diagnostics.disabled = gameDiagnostics.disabled = false; }
 };
+const autotestButton = document.getElementById('autotest');
+autotestButton.textContent = autotestLabel();
+autotestButton.onclick = () => { if (configureAutotest()) location.reload(); else autotestButton.textContent = autotestLabel(); };
 // Setup and diagnostics must remain reachable when the runtime cannot start.
 const setupDialog = document.getElementById('setup-dialog');
 for (const id of ['setup', 'mobile-setup']) {
@@ -151,6 +155,11 @@ try {
   // Guest memory: 1024 MiB on iPhone/iPad (Safari reloaded the page after the 2048 MiB block grew
   // the heap), 2048 elsewhere. ?dram=<768-2048> overrides it for testing.
   const guestDramMiB = new URLSearchParams(location.search).get('dram') ?? (iOS ? '1024' : '2048');
+  // Runtime hold: address space kept below the guest block for the runtime's own heap (so its
+  // pointers stay under 2 GiB). 640 MiB by default; 256 on iPhone/iPad, where the page was
+  // reloaded as total memory grew. Growing in 64 MiB steps from JS made it worse (the page
+  // died at +256..640 MiB), so that was removed. ?hold=<128-640> overrides it for testing.
+  const runtimeHoldMiB = new URLSearchParams(location.search).get('hold') ?? (iOS ? '256' : '640');
   phase('loading runtime (ui ' + uiRender + ')');
   // Startup watchdog: on WebKit the .NET runtime very occasionally never finishes starting (a
   // completion between its threads is lost). If a startup step stalls, reload; at most twice.
@@ -176,7 +185,7 @@ try {
   // runtime sometimes never gets the finalizer thread to stop (the page freezes or aborts with
   // mono-threads.c:336). A bigger nursery makes that race much rarer.
   startup.phase('runtime-create');
-  const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_RENDER', uiRender).withEnvironmentVariable('NXI_DRAM_MIB', guestDramMiB).withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
+  const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_RENDER', uiRender).withEnvironmentVariable('NXI_DRAM_MIB', guestDramMiB).withEnvironmentVariable('NXI_HOLD_MIB', runtimeHoldMiB).withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
   clearInterval(startTicker); phase('runtime created'); watchStartup('runtime created');
   startup.phase('runtime-exports');
   const api = (await runtime.getAssemblyExports(runtime.getConfig().mainAssemblyName)).NxInfinity.BrowserLauncher;
@@ -253,7 +262,9 @@ try {
         const version = await restoreFirmware(api, tell);
         firmwareRestored = true;
         if (version) document.getElementById('setup-message').textContent = `Firmware ${version} restored from this device.`;
-        phase('firmware restore finished');
+        let firmwareMiB = '';
+        try { const bytes = api.FirmwareTreeBytes?.(); if (bytes >= 0) firmwareMiB = ` (${Math.round(bytes / 1048576)} MiB in memory)`; } catch {}
+        phase('firmware restore finished' + firmwareMiB);
       } catch {
         const message = 'Saved firmware could not be restored. Open Setup and import the firmware again.';
         document.getElementById('setup-message').textContent = message;
@@ -290,34 +301,8 @@ try {
     const stop = () => { clearInterval(timer); observer.dispose(); copyBoundary(); };
     return stop;
   };
-  // iPhone/iPad: grow the page memory for the guest block in 64 MiB steps before the first
-  // Play, instead of one ~1.6 GiB jump inside the core. Safari reloaded the page at that
-  // jump. New pages are zero and untouched, so the core still skips clearing them. The
-  // target stays 96 MiB under what the core needs (640 MiB runtime hold + guest memory):
-  // Emscripten may already have that much spare, and the core grows any remainder itself.
-  // Each step is logged, so a reload shows how far it got.
-  let guestMemoryPrepared = !iOS || Number(guestDramMiB) >= 2048;
-  async function prepareGuestMemory() {
-    if (guestMemoryPrepared) return;
-    guestMemoryPrepared = true;
-    const memory = globalThis.nxiWasmMemory, MiB = 1024 * 1024, step = 64 * MiB;
-    if (!memory?.grow) return;
-    // Let Safari collect what the firmware restore left behind before growing.
-    await new Promise(resolve => setTimeout(resolve, 750));
-    const start = memory.buffer.byteLength;
-    const target = Math.min(start + (640 + Number(guestDramMiB) - 96) * MiB, 4096 * MiB - step);
-    const total = Math.round((target - start) / MiB);
-    phase(`Preparing memory… 0/${total} MiB`);
-    try {
-      while (memory.buffer.byteLength + step <= target) {
-        memory.grow(step / 65536);
-        phase(`Preparing memory… ${Math.round((memory.buffer.byteLength - start) / MiB)}/${total} MiB`);
-        await new Promise(resolve => setTimeout(resolve, 16));
-      }
-    } catch (error) { phase('Preparing memory stopped: ' + (error?.message ?? error)); }
-  }
   const playApi = new Proxy(api, { get: (target, key) => key === 'Play' ? async id => {
-    await ensureFirmware(); await prepareGuestMemory(); const attempt = ++playAttempt; playPending = true;
+    await ensureFirmware(); const attempt = ++playAttempt; playPending = true;
     copyBoundary(); phase('Play pressed'); const stopWatching = watchPlay();
     try {
       let result;
@@ -631,6 +616,7 @@ try {
   await jitRestore;
   await api.MarkRuntimeReady();
   startup.finish();
+  runAutotest({ api: globalThis.nxi.api, phase, startup });
   button.disabled = false;
   for (const id of ['choose-keys', 'choose-firmware', 'choose-firmware-folder', 'classic-mode']) document.getElementById(id).disabled = false;
   tell(setupWarnings.length ? 'Setup needs attention. Open Setup for details.' : `Ready · ${restored.restored} saved files${restored.skipped ? ` · ${restored.skipped} need attention` : ''}`);

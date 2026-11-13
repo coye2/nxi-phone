@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "447de49a1a99467e9dcd68ee2f11034e21645798",
-    "nativeSourceCommit":  "447de49a1a99467e9dcd68ee2f11034e21645798",
-    "previousDeployment":  "725d96a98ddff981936884d203dc8dc057c8f717",
+    "sourceCommit":  "b8e22b90870321570f86f21534c49cf2a49eeca5",
+    "nativeSourceCommit":  "b8e22b90870321570f86f21534c49cf2a49eeca5",
+    "previousDeployment":  "e85e4d8b96a9f64995ff51ca1331169fc3847f07",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -82,9 +82,13 @@
                     "Apply controller input immediately",
                     "iPhone/iPad guest memory 1024 MiB (?dram= override)",
                     "Free firmware restore memory",
-                    "iPhone grows guest memory in 64 MiB steps"
+                    "iPhone grows guest memory in 64 MiB steps",
+                    "Firmware keeps only titles the core reads",
+                    "Firmware size in trail",
+                    "iPhone runtime hold 256 MiB",
+                    "Drop JS stepped growth"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-12T11:34:50.9045139Z",
+    "builtAt":  "2026-11-13T19:33:36.2667218Z",
     "browserAndHleJavaScriptChecksPassed":  362
 }
