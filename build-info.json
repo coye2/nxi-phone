@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "8d98d41cf818b77eb902afdf620989f768bff119",
-    "nativeSourceCommit":  "8d98d41cf818b77eb902afdf620989f768bff119",
-    "previousDeployment":  "447552724426734db0ef84f69fb17cb35ea25e34",
+    "sourceCommit":  "07843e4cf8e689107c75d3345246a6ff671d417c",
+    "nativeSourceCommit":  "07843e4cf8e689107c75d3345246a6ff671d417c",
+    "previousDeployment":  "16bd78654fc980a5193cdcb62798932eb2337ee6",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -90,9 +90,10 @@
                     "Stream firmware from storage",
                     "Bounded translation caches",
                     "Memory probes",
-                    "Proven-fresh guest RAM"
+                    "Proven-fresh guest RAM",
+                    "pagerprobe paging latency probe: OPFS pager worker, 16/64/256 KiB pages, clean and dirty faults"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-14T03:29:07.5299235Z",
+    "builtAt":  "2026-11-14T16:19:58.0974242Z",
     "browserAndHleJavaScriptChecksPassed":  362
 }

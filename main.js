@@ -143,6 +143,12 @@ try {
     try { await runMemoryTest(tell); } catch (error) { tell('memtest failed: ' + error.message); }
     await new Promise(() => {});
   }
+  if (new URLSearchParams(location.search).has('pagerprobe')) {
+    // Paging latency probe instead of NXI; see pager-probe.js.
+    const { runPagerProbe } = await import('./pager-probe.js');
+    try { await runPagerProbe(tell); } catch (error) { tell('pager probe failed: ' + error.message); }
+    await new Promise(() => {});
+  }
   selectedCpuCachePolicy = cpuCachePolicy(location.search, iOS);
   runtimeMemoryCapture = installRuntimeMemoryCapture(WebAssembly, {
     initialPages: initialMemoryExperiment(location.search),
