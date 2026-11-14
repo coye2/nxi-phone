@@ -76,6 +76,64 @@ async function upload(body) {
   }
 }
 
+// Cold test: two phases across a phone restart, so the read hits flash, not the OS file cache.
+//   phase A (no marker): write the backing file, persist storage, ask the user to force-quit
+//                        and restart the phone, then reopen the same URL.
+//   phase B (marker set): read every page once in shuffled order WITHOUT rewriting — cold reads.
+const COLD_MARK = 'mochi-pager-cold';
+export async function runPagerProbeCold(tell, pageKiB = 64) {
+  const log = [];
+  const say = text => { log.push(text); tell(log.slice(-8).join('\n')); };
+  if (!crossOriginIsolated) throw Error('needs cross-origin isolation (reload once installed)');
+  if (!navigator.storage?.getDirectory) throw Error('OPFS is not available in this browser');
+  const pageBytes = pageKiB * 1024, backingBytes = 256 * 1048576;
+  let mark = null; try { mark = JSON.parse(localStorage.getItem(COLD_MARK) || 'null'); } catch {}
+
+  if (!mark || mark.pageKiB !== pageKiB) {
+    say(`Cold test — phase 1 of 2: writing a ${backingBytes / 1048576} MiB file at ${pageKiB} KiB pages…`);
+    try { await navigator.storage.persist?.(); } catch {}
+    const pager = new Worker(new URL('./pager-probe-worker.js', import.meta.url));
+    const mailbox = new SharedArrayBuffer(64), timing = new SharedArrayBuffer(16), pool = new SharedArrayBuffer(1048576);
+    const prepared = once(pager, d => d.prepared);
+    pager.postMessage({ role: 'pager', mode: 'prepare', mailbox, timing, pool, backingBytes, pageBytes });
+    await prepared; pager.terminate();
+    try { localStorage.setItem(COLD_MARK, JSON.stringify({ pageKiB, preparedAt: new Date().toISOString() })); } catch {}
+    say('Phase 1 done. Now FULLY close Mochi (swipe it away), restart the phone, then reopen this same link to run phase 2.');
+    return { phase: 'prepared', pageKiB };
+  }
+
+  say(`Cold test — phase 2 of 2: reading every page once from cold storage (${pageKiB} KiB pages)…`);
+  const pool = new SharedArrayBuffer(32 * 1048576);
+  const mailbox = new SharedArrayBuffer(64), timing = new SharedArrayBuffer(16);
+  const pager = new Worker(new URL('./pager-probe-worker.js', import.meta.url)), cpu = new Worker(new URL('./pager-probe-worker.js', import.meta.url));
+  let result;
+  try {
+    const ready = once(pager, d => d.ready);
+    pager.postMessage({ role: 'pager', mode: 'serveNoInit', mailbox, timing, pool, backingBytes, pageBytes });
+    const { info } = await ready;
+    const done = once(cpu, d => d.done);
+    cpu.postMessage({ role: 'cpu', mailbox, timing, pool, backingBytes, pageBytes, requests: 0, controlRequests: 0, dirtyEvery: 0, pattern: 'shuffleOnce' });
+    const { out } = await done;
+    result = { coldClean: summary(out.cleanFault), pagerRead: summary(out.pagerRead), errors: out.errors, mismatches: out.mismatches,
+      sharedBufferReads: info.sharedReads };
+    say(`Cold ${pageKiB} KiB: p50 ${result.coldClean.p50} ms, p90 ${result.coldClean.p90}, p99 ${result.coldClean.p99}, max ${result.coldClean.max} (${result.coldClean.n} reads)`);
+  } finally { pager.terminate(); cpu.terminate(); }
+  try { const root = await navigator.storage.getDirectory(); await root.removeEntry('mochi-pager-probe.bin'); } catch {}
+  try { localStorage.removeItem(COLD_MARK); } catch {}
+
+  let sha = ''; try { sha = (await (await fetch('./build-info.json')).json()).sourceCommit || ''; } catch {}
+  const body = { kind: 'pagerprobe-cold', sha, at: new Date().toISOString(), userAgent: navigator.userAgent,
+    standalone: matchMedia('(display-mode: standalone)').matches, cores: navigator.hardwareConcurrency || null,
+    notes: 'Backing file prepared before a phone restart; phase 2 reads each page once. Cold-cache attempt, not a guaranteed NAND read.',
+    pageKiB, result };
+  say('Done. ' + await upload(body));
+  const pre = document.createElement('pre');
+  pre.style.cssText = 'white-space:pre-wrap;font-size:12px;max-height:60vh;overflow:auto;user-select:text';
+  pre.textContent = JSON.stringify(body, null, 1);
+  document.body.append(pre);
+  return body;
+}
+
 export async function runPagerProbe(tell) {
   const log = [];
   const say = text => { log.push(text); tell(log.slice(-8).join('\n')); };

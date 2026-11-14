@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "07843e4cf8e689107c75d3345246a6ff671d417c",
-    "nativeSourceCommit":  "07843e4cf8e689107c75d3345246a6ff671d417c",
-    "previousDeployment":  "16bd78654fc980a5193cdcb62798932eb2337ee6",
+    "sourceCommit":  "41481d2e21f330651f83f06487fdc7896caf20af",
+    "nativeSourceCommit":  "41481d2e21f330651f83f06487fdc7896caf20af",
+    "previousDeployment":  "2371d49dd41f0c8b2c3aa031863ea822a8fc7ed9",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -91,9 +91,10 @@
                     "Bounded translation caches",
                     "Memory probes",
                     "Proven-fresh guest RAM",
-                    "pagerprobe paging latency probe: OPFS pager worker, 16/64/256 KiB pages, clean and dirty faults"
+                    "pagerprobe paging latency probe: OPFS pager worker, 16/64/256 KiB pages, clean and dirty faults",
+                    "cold-storage paging probe: write, restart phone, read every page once from flash"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-14T16:19:58.0974242Z",
+    "builtAt":  "2026-11-14T17:37:09.4690954Z",
     "browserAndHleJavaScriptChecksPassed":  362
 }

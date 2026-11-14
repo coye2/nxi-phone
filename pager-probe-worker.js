@@ -15,17 +15,16 @@ function fillPage(view32, page, wordsPerPage, firstWord) {
   view32[firstWord + wordsPerPage - 1] = expected(page, wordsPerPage - 1);
 }
 
-async function pager({ mailbox, timing, pool, backingBytes, pageBytes }) {
+async function pager({ mailbox, timing, pool, backingBytes, pageBytes, mode = 'serve' }) {
   const mb = new Int32Array(mailbox), times = new Float64Array(timing), poolBytes = new Uint8Array(pool);
   const root = await navigator.storage.getDirectory();
   const file = await root.getFileHandle(FILE, { create: true });
   const handle = await file.createSyncAccessHandle();
   const info = { initMs: 0, rewritten: false, sharedReads: null, sharedWrites: null };
   const words = pageBytes / 4;
-  // (Re)write the backing file when its size or page pattern doesn't match this run.
   const probe = new Int32Array(1);
   const okAt = page => { handle.read(probe, { at: page * pageBytes }); return probe[0] === expected(page, 0); };
-  if (handle.getSize() !== backingBytes || !okAt(0) || !okAt(backingBytes / pageBytes - 1)) {
+  const writeBacking = () => {
     const t = performance.now(), chunk = 1 << 20, buf = new Int32Array(chunk / 4);
     handle.truncate(0);
     for (let at = 0; at < backingBytes; at += chunk) {
@@ -35,6 +34,24 @@ async function pager({ mailbox, timing, pool, backingBytes, pageBytes }) {
     }
     handle.flush();
     info.initMs = performance.now() - t; info.rewritten = true;
+  };
+  if (mode === 'prepare') {
+    // Cold test, phase A: write the backing file and leave it on disk. The caller then
+    // force-quits and restarts the phone so the OS file cache is dropped before phase B.
+    writeBacking(); handle.close();
+    postMessage({ prepared: true, info });
+    return;
+  }
+  if (mode === 'serveNoInit') {
+    // Cold test, phase B: do NOT rewrite (that would warm the cache). The file must already
+    // be the right size and pattern from a prior prepare, or we cannot measure cold reads.
+    if (handle.getSize() !== backingBytes || !okAt(0) || !okAt(backingBytes / pageBytes - 1)) {
+      handle.close();
+      postMessage({ error: 'cold backing file missing or stale — run the prepare phase first' });
+      return;
+    }
+  } else if (handle.getSize() !== backingBytes || !okAt(0) || !okAt(backingBytes / pageBytes - 1)) {
+    writeBacking();
   }
   const scratch = new Uint8Array(pageBytes);
   const read = (slot, page) => {
@@ -84,6 +101,15 @@ function cpu({ mailbox, timing, pool, backingBytes, pageBytes, requests, dirtyEv
   const out = { hit: [], cleanFault: [], dirtyFault: [], noIO: [], pagerRead: [], pagerWrite: [], errors: 0, mismatches: 0 };
   let hand = 0, generation = 0, seq = 0, rng = 0x9e3779b9;
   const random = () => { rng ^= rng << 13; rng ^= rng >>> 17; rng ^= rng << 5; return (rng >>> 0) / 4294967296; };
+  // shuffleOnce visits every page exactly once in random order, so with a pool smaller than the
+  // backing file every access is a compulsory miss — a true cold read from flash for the cold test.
+  let order = null;
+  if (pattern === 'shuffleOnce') {
+    order = new Int32Array(pages);
+    for (let i = 0; i < pages; i++) order[i] = i;
+    for (let i = pages - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
+    requests = pages;
+  }
   const roundTrip = (op, slot, newPage, oldPage) => {
     mb[1] = op; mb[2] = slot; mb[3] = newPage; mb[4] = oldPage; mb[5] = pageBytes; mb[6] = ++generation;
     Atomics.store(mb, 0, 1);
@@ -99,7 +125,7 @@ function cpu({ mailbox, timing, pool, backingBytes, pageBytes, requests, dirtyEv
     const t = performance.now(); roundTrip(0, 0, 0, 0); out.noIO.push(performance.now() - t);
   }
   for (let i = 0; i < requests; i++) {
-    const page = pattern === 'sequential' ? i % pages : Math.floor(random() * pages);
+    const page = order ? order[i] : pattern === 'sequential' ? i % pages : Math.floor(random() * pages);
     const makeDirty = dirtyEvery > 0 && (++seq % dirtyEvery) === 0;
     const t = performance.now();
     let slot = pageSlot[page], kind = 'hit';

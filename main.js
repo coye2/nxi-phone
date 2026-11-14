@@ -143,10 +143,17 @@ try {
     try { await runMemoryTest(tell); } catch (error) { tell('memtest failed: ' + error.message); }
     await new Promise(() => {});
   }
-  if (new URLSearchParams(location.search).has('pagerprobe')) {
-    // Paging latency probe instead of NXI; see pager-probe.js.
-    const { runPagerProbe } = await import('./pager-probe.js');
-    try { await runPagerProbe(tell); } catch (error) { tell('pager probe failed: ' + error.message); }
+  const pagerParam = new URLSearchParams(location.search).get('pagerprobe');
+  if (pagerParam !== null) {
+    // Paging latency probe instead of NXI; see pager-probe.js. ?pagerprobe=cold runs the
+    // two-phase cold-storage test (write, restart the phone, read once); ?pagerprobe runs warm.
+    const mod = await import('./pager-probe.js');
+    try {
+      if (pagerParam.startsWith('cold')) {
+        const page = Number(new URLSearchParams(location.search).get('page')) || 64;
+        await mod.runPagerProbeCold(tell, page);
+      } else await mod.runPagerProbe(tell);
+    } catch (error) { tell('pager probe failed: ' + error.message); }
     await new Promise(() => {});
   }
   selectedCpuCachePolicy = cpuCachePolicy(location.search, iOS);
