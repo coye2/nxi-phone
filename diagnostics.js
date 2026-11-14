@@ -303,6 +303,7 @@ export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000
     lastPlay: lastPlay ? { ...lastPlay, nativeLoader: summarizeLoaderJournal(lastPlay.nativeLoader) } : null,
     startup: startupSnapshot,
     session: null, core: null, execution: null, cpuMailboxes: null, gpuRing: null, gpuWorker: null, jitCache: null,
+    runtimeMemory: null, workerMemory: null,
     errors: [], offlineBuild: null, availableOfflineBuild: null,
     qualification: { retailGameVerified: false, physicalPhoneVerified: false },
   };
@@ -321,6 +322,8 @@ export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000
   try {report.gpuRing = globalThis.nxiReadGpuRing?.() ?? null;} catch {}
   try {report.cpuMailboxes = globalThis.nxiReadCpuMailboxes?.() ?? null;} catch {}
   try {report.jitCache = globalThis.nxiReadJitCache?.() ?? null;} catch {}
+  try {report.runtimeMemory = globalThis.nxiReadRuntimeMemory?.() ?? null;} catch {}
+  try {report.workerMemory = globalThis.nxiWorkerCounters?.() ?? null;} catch {}
   if(results[3].status === 'fulfilled')report.gpuWorker=results[3].value;
   else report.errors.push('GPU worker diagnostics were unavailable.');
   await Promise.all(['precache.json', 'build-info.json'].map(async file => {

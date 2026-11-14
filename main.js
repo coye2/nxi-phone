@@ -13,6 +13,7 @@ import { startSessionView } from './session-view.js';
 import { exportDiagnostics, phase, noteAppReload, recordBoundary, drainBoundary, drainLoaderJournal, capturePlayBuild, formatPlaySample, createStartupDiagnostics, createPlayStatusObserver } from './diagnostics.js';
 import { configureRuntimeDelivery } from './runtime-delivery.js';
 import { readCpuMailboxDiagnostics, MAX_CPU_MAILBOX_SAMPLES } from './cpu-mailbox-diagnostics.js';
+import { initialMemoryExperiment, installRuntimeMemoryCapture, cpuCachePolicy } from './runtime-memory.js';
 
 globalThis.nxiRecordBoundary = recordBoundary;
 
@@ -48,15 +49,11 @@ for (const id of ['setup', 'mobile-setup']) {
   control.disabled = false; control.onclick = () => setupDialog.showModal();
 }
 for (const id of ['choose-keys', 'choose-firmware', 'choose-firmware-folder', 'classic-mode']) document.getElementById(id).disabled = true;
-const NativeMemory = WebAssembly.Memory;
-const CapturedMemory = function (descriptor) {
-  const memory = new NativeMemory(descriptor);
-  if (descriptor?.shared && !globalThis.nxiWasmMemory) globalThis.nxiWasmMemory = memory;
-  return memory;
-};
-CapturedMemory.prototype = NativeMemory.prototype;
-WebAssembly.Memory = CapturedMemory;
+const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let runtimeMemoryCapture, selectedCpuCachePolicy;
+globalThis.nxiReadRuntimeMemory = () => runtimeMemoryCapture?.snapshot() ?? null;
 const cpuWorkers = [];
+const cpuCacheObservations = new Map();
 const cpuMailboxRecords = [];
 let playAttempt = 0, playPending = false, cpuWorkersCreated = 0, cpuWorkersRetired = 0;
 globalThis.nxiRetireCpuWorkers = () => {
@@ -65,6 +62,7 @@ globalThis.nxiRetireCpuWorkers = () => {
     cpuWorkers.shift(); cpuWorkersRetired++;
   }
   cpuMailboxRecords.length = 0;
+  cpuCacheObservations.clear();
 };
 globalThis.nxiReadCpuMailboxes = () => ({
   ...readCpuMailboxDiagnostics(globalThis.nxiWasmMemory, cpuMailboxRecords, {totalWorkersCreated:cpuWorkers.length}),
@@ -77,11 +75,15 @@ globalThis.nxiSpawnCpuWorker = mailbox => {
   cpuMailboxRecords.push({address:mailbox,workerId:++cpuWorkersCreated,birthPlayAttempt:playAttempt});
   if(cpuMailboxRecords.length>MAX_CPU_MAILBOX_SAMPLES)cpuMailboxRecords.shift();
   worker.onerror = e => tell('CPU worker failed: ' + e.message);
-  worker.postMessage({ memory: globalThis.nxiWasmMemory, mailbox });
+  worker.onmessage = ({ data }) => {
+    if (data?.type === 'cpu-cache' && cpuWorkers.includes(worker)) cpuCacheObservations.set(worker, data);
+  };
+  worker.postMessage({ memory: globalThis.nxiWasmMemory, mailbox, cachePolicy: selectedCpuCachePolicy });
 };
 let ioWorker, storageReady;
 globalThis.nxiWorkerCounters = () => ({ cpuWorkersCreated: cpuWorkers.length, cpuWorkersActive: cpuWorkers.length,
-  totalCpuWorkersCreated:cpuWorkersCreated, cpuWorkersRetired, storageWorkerCreated: ioWorker ? 1 : 0 });
+  totalCpuWorkersCreated:cpuWorkersCreated, cpuWorkersRetired, storageWorkerCreated: ioWorker ? 1 : 0,
+  cpuCachePolicy: selectedCpuCachePolicy ?? null, cpuCaches: [...cpuCacheObservations.values()] });
 globalThis.nxiStartIoWorker = mailbox => {
   storageReady = new Promise((resolve, reject) => {
     const fail = message => {
@@ -141,6 +143,11 @@ try {
     try { await runMemoryTest(tell); } catch (error) { tell('memtest failed: ' + error.message); }
     await new Promise(() => {});
   }
+  selectedCpuCachePolicy = cpuCachePolicy(location.search, iOS);
+  runtimeMemoryCapture = installRuntimeMemoryCapture(WebAssembly, {
+    initialPages: initialMemoryExperiment(location.search),
+    onCapture: memory => { globalThis.nxiWasmMemory = memory; },
+  });
   tell('Starting Mochi…');
   // Starting can take a minute on a phone; show it is still working.
   const startedAt = Date.now();
@@ -150,7 +157,6 @@ try {
   }, 5000);
   // Launcher UI drawing: software on iPhone/iPad (the WebGL path crashed a real iPhone at startup),
   // Avalonia's default elsewhere. ?render=gl or ?render=software overrides it for testing.
-  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const uiRender = new URLSearchParams(location.search).get('render') ?? (iOS ? 'software' : 'gl');
   // Guest memory: 1024 MiB on iPhone/iPad (Safari reloaded the page after the 2048 MiB block grew
   // the heap), 2048 elsewhere. ?dram=<768-2048> overrides it for testing.
@@ -185,7 +191,15 @@ try {
   // runtime sometimes never gets the finalizer thread to stop (the page freezes or aborts with
   // mono-threads.c:336). A bigger nursery makes that race much rarer.
   startup.phase('runtime-create');
-  const runtime = await runtimeBuilder.withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m').withEnvironmentVariable('NXI_RENDER', uiRender).withEnvironmentVariable('NXI_DRAM_MIB', guestDramMiB).withEnvironmentVariable('NXI_HOLD_MIB', runtimeHoldMiB).withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0').withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
+  const runtime = await runtimeBuilder
+    .withEnvironmentVariable('MONO_GC_PARAMS', 'nursery-size=32m')
+    .withEnvironmentVariable('NXI_RENDER', uiRender)
+    .withEnvironmentVariable('NXI_DRAM_MIB', guestDramMiB)
+    .withEnvironmentVariable('NXI_HOLD_MIB', runtimeHoldMiB)
+    .withEnvironmentVariable('NXI_TRANSLATION_CACHE_MIB', iOS ? '32' : '64')
+    .withEnvironmentVariable('NXI_TRANSLATION_CACHE_ENTRIES', '32768')
+    .withEnvironmentVariable('NXI_DUMP_SHADERS', dumpShaders ? '1' : '0')
+    .withConfig({ pthreadPoolInitialSize: 8, jsThreadBlockingMode: 'DangerousAllowBlockingWait' }).create();
   clearInterval(startTicker); phase('runtime created'); watchStartup('runtime created');
   startup.phase('runtime-exports');
   const api = (await runtime.getAssemblyExports(runtime.getConfig().mainAssemblyName)).NxInfinity.BrowserLauncher;

@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "b8e22b90870321570f86f21534c49cf2a49eeca5",
-    "nativeSourceCommit":  "b8e22b90870321570f86f21534c49cf2a49eeca5",
-    "previousDeployment":  "e85e4d8b96a9f64995ff51ca1331169fc3847f07",
+    "sourceCommit":  "8d98d41cf818b77eb902afdf620989f768bff119",
+    "nativeSourceCommit":  "8d98d41cf818b77eb902afdf620989f768bff119",
+    "previousDeployment":  "447552724426734db0ef84f69fb17cb35ea25e34",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -86,9 +86,13 @@
                     "Firmware keeps only titles the core reads",
                     "Firmware size in trail",
                     "iPhone runtime hold 256 MiB",
-                    "Drop JS stepped growth"
+                    "Drop JS stepped growth",
+                    "Stream firmware from storage",
+                    "Bounded translation caches",
+                    "Memory probes",
+                    "Proven-fresh guest RAM"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-13T19:33:36.2667218Z",
+    "builtAt":  "2026-11-14T03:29:07.5299235Z",
     "browserAndHleJavaScriptChecksPassed":  362
 }

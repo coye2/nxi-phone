@@ -4,6 +4,7 @@
 // clean uncompressed ZIP with <id>.nca / <id>.cnmt.nca at the root. Everything else is skipped.
 const NCA = /^([0-9a-f]{32})(\.cnmt)?\.nca$/i;
 const MAX_TOTAL = 512 * 1024 * 1024;
+const MAX_DIRECTORY = 2 * 1024 * 1024;
 
 export class FirmwareError extends Error {}
 
@@ -36,20 +37,26 @@ async function sniff(file) {
 export async function zipEntries(file) {
   const tailStart = Math.max(0, file.size - 65557), tail = await bytes(file, tailStart, file.size);
   let eocd = -1;
-  for (let i = tail.length - 22; i >= 0; i--) if (u32(tail, i) === 0x06054b50) { eocd = i; break; }
+  for (let i = tail.length - 22; i >= 0; i--) if (u32(tail, i) === 0x06054b50 && i + 22 + u16(tail, i + 20) === tail.length) { eocd = i; break; }
   if (eocd < 0) throw new FirmwareError('This ZIP is damaged or incomplete. Download it again, or pick the unpacked .nca files instead.');
+  if (u16(tail, eocd + 4) || u16(tail, eocd + 6)) throw new FirmwareError('Multi-disk firmware ZIPs are not supported.');
   let count = u16(tail, eocd + 10), size = u32(tail, eocd + 12), offset = u32(tail, eocd + 16);
-  if (count === 0xffff || size === 0xffffffff || offset === 0xffffffff) {
+  const zip64 = count === 0xffff || size === 0xffffffff || offset === 0xffffffff;
+  if (zip64) {
     const locator = eocd - 20;
     if (locator < 0 || u32(tail, locator) !== 0x07064b50) throw new FirmwareError('This ZIP is damaged or incomplete.');
     const z = await bytes(file, u64(tail, locator + 8), u64(tail, locator + 8) + 56);
     if (u32(z, 0) !== 0x06064b50) throw new FirmwareError('This ZIP is damaged or incomplete.');
     count = u64(z, 32); size = u64(z, 40); offset = u64(z, 48);
   }
+  if (!Number.isSafeInteger(count) || count < 1 || count > 8192 || !Number.isSafeInteger(offset) || offset < 0 ||
+      !Number.isSafeInteger(size) || size < 0 || size > MAX_DIRECTORY || offset > file.size - size)
+    throw new FirmwareError('This firmware ZIP has an invalid or oversized directory.');
   const cd = await bytes(file, offset, offset + size), entries = [], decoder = new TextDecoder();
   for (let p = 0, i = 0; i < count; i++) {
-    if (u32(cd, p) !== 0x02014b50) throw new FirmwareError('This ZIP is damaged or incomplete.');
+    if (p + 46 > cd.length || u32(cd, p) !== 0x02014b50) throw new FirmwareError('This ZIP is damaged or incomplete.');
     const flags = u16(cd, p + 8), method = u16(cd, p + 10), nameLength = u16(cd, p + 28), extraLength = u16(cd, p + 30), commentLength = u16(cd, p + 32);
+    if (p + 46 + nameLength + extraLength + commentLength > cd.length) throw new FirmwareError('This ZIP is damaged or incomplete.');
     let compressed = u32(cd, p + 20), length = u32(cd, p + 24), local = u32(cd, p + 42);
     const name = decoder.decode(cd.subarray(p + 46, p + 46 + nameLength));
     for (let e = p + 46 + nameLength, end = e + extraLength; e + 4 <= end; e += 4 + u16(cd, e + 2)) {
@@ -59,7 +66,9 @@ export async function zipEntries(file) {
       if (compressed === 0xffffffff) { compressed = u64(cd, q); q += 8; }
       if (local === 0xffffffff) local = u64(cd, q);
     }
-    entries.push({ name, flags, method, compressed, length, local, directory: name.endsWith('/') || name.endsWith('\\') });
+    if (![compressed, length, local].every(value => Number.isSafeInteger(value) && value >= 0) || local > file.size - 30 || compressed > file.size)
+      throw new FirmwareError('This ZIP contains an invalid entry range.');
+    entries.push({ name, flags, method, compressed, length, local, zip64, directory: name.endsWith('/') || name.endsWith('\\') });
     p += 46 + nameLength + extraLength + commentLength;
   }
   return entries;
@@ -75,6 +84,7 @@ function entrySource(file, entry) {
       const header = await bytes(file, entry.local, entry.local + 30);
       if (u32(header, 0) !== 0x04034b50) throw new FirmwareError('This ZIP is damaged or incomplete.');
       const start = entry.local + 30 + u16(header, 26) + u16(header, 28);
+      if (start > file.size - entry.compressed) throw new FirmwareError('This ZIP contains an invalid entry range.');
       const stream = file.slice(start, start + entry.compressed).stream();
       return entry.method === 8 ? stream.pipeThrough(new DecompressionStream('deflate-raw')) : stream;
     }
@@ -136,6 +146,8 @@ export async function writeFirmwareZip({ ncas, total }, write, { signal, onProgr
           signal?.throwIfAborted();
           const { done: end, value } = await reader.read();
           if (end) break;
+          if (length + value.length > nca.length || done + value.length > MAX_TOTAL)
+            throw new FirmwareError(`${nca.name} unpacked beyond its declared size.`);
           crc = crc32(crc, value); length += value.length; done += value.length;
           await put(value); onProgress(done, total);
         }

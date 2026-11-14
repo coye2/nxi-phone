@@ -1,4 +1,4 @@
-import { collectFirmware, writeFirmwareZip } from './firmware-package.js';
+import { collectFirmware, writeFirmwareZip, zipEntries } from './firmware-package.js';
 // User-supplied setup files stay in this origin's private storage.
 import { canonicalKeyFileName, MAX_KEY_FILE_BYTES, prepareKeyFile } from './key-file.js';
 const DIR = 'nxi-setup';
@@ -153,13 +153,12 @@ async function readFirmware(dir) {
     return record;
   } catch (error) { if (error.name === 'NotFoundError') return null; throw error; }
 }
-// An array of picked files (ZIP from any tool, loose .nca files or a folder) is rewritten into a
-// clean package by firmware-package.js. A single File is taken as an already clean ZIP.
+// Every input is normalized to an uncompressed ZIP. Native firmware reads can then seek
+// directly into the immutable OPFS package instead of restoring an extracted tree to RAM.
 export async function saveFirmware(input, api, { signal, onProgress = () => {} } = {}) {
-  const plan = Array.isArray(input) ? await collectFirmware(input) : null, file = plan ? null : input;
-  if (file && (!/\.zip$/i.test(file.name) || file.size < 22 || file.size > 512 * 1024 * 1024))
-    throw new Error('Choose a firmware ZIP up to 512 MiB.');
-  const needed = plan ? plan.total : file.size;
+  signal?.throwIfAborted();
+  const plan = await collectFirmware(Array.isArray(input) ? input : [input]);
+  const needed = plan.total + plan.ncas.length * 192 + 22;
   const estimate = await navigator.storage.estimate?.();
   if (estimate?.quota && needed > estimate.quota - (estimate.usage || 0)) throw new Error('Not enough device storage for this firmware package.');
   signal?.throwIfAborted();
@@ -167,20 +166,10 @@ export async function saveFirmware(input, api, { signal, onProgress = () => {} }
   const data = await root.getDirectoryHandle('nxi-games', { create: true });
   const previous = await readFirmware(dir);
   const id = crypto.randomUUID().replaceAll('-', '') + '.zip';
-  let writer, reader, installed = false, size = 0;
+  let writer, installed = false, size = 0;
   try {
     writer = await (await data.getFileHandle(id, { create: true })).createWritable();
-    if (plan) size = await writeFirmwareZip(plan, chunk => writer.write(chunk), { signal, onProgress });
-    else {
-      reader = file.stream().getReader(); let done = 0;
-      for (;;) {
-        signal?.throwIfAborted(); const next = await reader.read(); if (next.done) break;
-        if (done + next.value.byteLength > file.size) throw new Error('Firmware file changed during copy.');
-        await writer.write(next.value); done += next.value.byteLength; onProgress(done, file.size);
-      }
-      signal?.throwIfAborted(); if (done !== file.size) throw new Error('Firmware file changed during copy.');
-      size = done;
-    }
+    size = await writeFirmwareZip(plan, chunk => writer.write(chunk), { signal, onProgress });
     await writer.close(); writer = null;
     const firmwareVersion = await api.InstallStoredFirmware(id); installed = true;
     const record = { version: 1, id, size, firmwareVersion };
@@ -192,10 +181,12 @@ export async function saveFirmware(input, api, { signal, onProgress = () => {} }
     return firmwareVersion;
   } catch (error) {
     try { await writer?.abort(); } catch {}
-    try { await data.removeEntry(id); } catch {}
+    // The active read-only catalog owns this package after installation. If metadata commit
+    // fails, keep it for this session; the previous saved record and package still survive.
+    if (!installed) try { await data.removeEntry(id); } catch {}
     if (installed) throw new Error('Firmware is installed for this session, but was not saved. The previous saved setup is preserved. ' + error.message);
     throw error;
-  } finally { try { await reader?.cancel(); } catch {} reader?.releaseLock(); }
+  }
 }
 export async function restoreFirmware(api, report = () => {}) {
   const dir = await directory(), record = await readFirmware(dir);
@@ -204,6 +195,15 @@ export async function restoreFirmware(api, report = () => {}) {
   const data = await (await navigator.storage.getDirectory()).getDirectoryHandle('nxi-games');
   const file = await (await data.getFileHandle(record.id)).getFile();
   if (file.size !== record.size) throw new Error('The saved firmware package changed. Import firmware again.');
+  // Older callers could save arbitrary compressed ZIPs. Migrate once, entirely on-device,
+  // through the normal verified import + atomic metadata commit. Never delete the old file
+  // until the replacement record is durable; interrupted migration is retryable.
+  const entries = await zipEntries(file);
+  if (entries.some(entry => entry.zip64 || entry.method !== 0 || entry.compressed !== entry.length ||
+      (entry.flags & ~0x808) !== 0 || !/^[0-9a-f]{32}(\.cnmt)?\.nca$/.test(entry.name))) {
+    report('Preparing saved firmware for direct storage reads…');
+    return saveFirmware([file], api);
+  }
   // Import already checked and verified this package. Restore installs it and the
   // native side checks the installed version against the saved record. A record
   // from before that version was stored still takes the full check.

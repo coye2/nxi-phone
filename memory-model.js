@@ -108,6 +108,7 @@ export function observeMemory() {
   const memory = globalThis.nxiWasmMemory?.buffer ?? module?.HEAPU8?.buffer;
   const threads = module?.PThread;
   return { at: new Date().toISOString(), linearBufferBytes: memory?.byteLength ?? null,
+    runtimeAllocation: globalThis.nxiReadRuntimeMemory?.() ?? null,
     additionalWorkers: globalThis.nxiWorkerCounters?.() ?? null,
     runtimeWorkersRunning: threads?.runningWorkers?.length ?? null, runtimeWorkersIdle: threads?.unusedWorkers?.length ?? null,
     residentBytes: null, gpuResidentBytes: null,
