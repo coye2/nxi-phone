@@ -19,7 +19,17 @@ async function pager({ mailbox, timing, pool, backingBytes, pageBytes, mode = 's
   const mb = new Int32Array(mailbox), times = new Float64Array(timing), poolBytes = new Uint8Array(pool);
   const root = await navigator.storage.getDirectory();
   const file = await root.getFileHandle(FILE, { create: true });
-  const handle = await file.createSyncAccessHandle();
+  // iOS Safari throws InvalidStateError ("object is in an invalid state") if a prior sync access
+  // handle on this file is still releasing its lock (close() is async and may not have finished,
+  // e.g. after a force-quit). Retry a few times before giving up.
+  let handle = null;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try { handle = await file.createSyncAccessHandle(); break; }
+    catch (error) {
+      if (error?.name !== 'InvalidStateError' || attempt === 19) throw error;
+      await new Promise(r => setTimeout(r, 150));
+    }
+  }
   const info = { initMs: 0, rewritten: false, sharedReads: null, sharedWrites: null };
   const words = pageBytes / 4;
   const probe = new Int32Array(1);
@@ -38,7 +48,7 @@ async function pager({ mailbox, timing, pool, backingBytes, pageBytes, mode = 's
   if (mode === 'prepare') {
     // Cold test, phase A: write the backing file and leave it on disk. The caller then
     // force-quits and restarts the phone so the OS file cache is dropped before phase B.
-    writeBacking(); handle.close();
+    writeBacking(); await handle.close();
     postMessage({ prepared: true, info });
     return;
   }
@@ -46,7 +56,7 @@ async function pager({ mailbox, timing, pool, backingBytes, pageBytes, mode = 's
     // Cold test, phase B: do NOT rewrite (that would warm the cache). The file must already
     // be the right size and pattern from a prior prepare, or we cannot measure cold reads.
     if (handle.getSize() !== backingBytes || !okAt(0) || !okAt(backingBytes / pageBytes - 1)) {
-      handle.close();
+      await handle.close();
       postMessage({ error: 'cold backing file missing or stale — run the prepare phase first' });
       return;
     }
@@ -89,7 +99,7 @@ async function pager({ mailbox, timing, pool, backingBytes, pageBytes, mode = 's
     }
     Atomics.notify(mb, 0);
   }
-  handle.close();
+  await handle.close();
   postMessage({ stopped: true, info });
 }
 

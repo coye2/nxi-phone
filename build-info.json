@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "41481d2e21f330651f83f06487fdc7896caf20af",
-    "nativeSourceCommit":  "41481d2e21f330651f83f06487fdc7896caf20af",
-    "previousDeployment":  "2371d49dd41f0c8b2c3aa031863ea822a8fc7ed9",
+    "sourceCommit":  "3fa0fe7c490c1b4e32ee462c181f843deba41fb9",
+    "nativeSourceCommit":  "3fa0fe7c490c1b4e32ee462c181f843deba41fb9",
+    "previousDeployment":  "4c188d2ebdd2bacb44065ada59cff634b7b03677",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -92,9 +92,10 @@
                     "Memory probes",
                     "Proven-fresh guest RAM",
                     "pagerprobe paging latency probe: OPFS pager worker, 16/64/256 KiB pages, clean and dirty faults",
-                    "cold-storage paging probe: write, restart phone, read every page once from flash"
+                    "cold-storage paging probe: write, restart phone, read every page once from flash",
+                    "fix iOS OPFS InvalidStateError: await handle close and retry open"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-14T17:37:09.4690954Z",
+    "builtAt":  "2026-11-14T18:07:35.9810574Z",
     "browserAndHleJavaScriptChecksPassed":  362
 }
