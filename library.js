@@ -72,9 +72,10 @@ export async function importToLibrary(file, api, { signal, onProgress = () => {}
   let data, index, writer, reader, registered = false, cancellable = true, phase = 'opening-storage';
   const cancelRead = () => { const pending = reader?.cancel(); pending?.catch(() => {}); };
   try {
-    const estimate = await navigator.storage.estimate?.();
-    if (estimate?.quota && file.size > estimate.quota - (estimate.usage || 0))
-      throw Object.assign(new Error('Not enough device storage for this game. Free space and try again.'), { importFailure: true, code: 'import_storage_full' });
+    // Estimates can be privacy-padded (Chromium reports usage + 10 GiB), so
+    // they cannot reject a selected file. Let OPFS enforce the actual quota;
+    // QuotaExceededError below still reports full storage and rolls back only
+    // this import. Copying remains bounded and cancellable on every browser.
     data = await directory(DATA); index = await directory(INDEX);
     onPhase('copying');
     phase = 'writing-file';

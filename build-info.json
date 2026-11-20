@@ -1,8 +1,8 @@
 {
     "sourceRepository":  "coye2/NX-Infinity-Development",
-    "sourceCommit":  "3fa0fe7c490c1b4e32ee462c181f843deba41fb9",
-    "nativeSourceCommit":  "3fa0fe7c490c1b4e32ee462c181f843deba41fb9",
-    "previousDeployment":  "4c188d2ebdd2bacb44065ada59cff634b7b03677",
+    "sourceCommit":  "0d069844858719a559b257ff8cff20524381ead6",
+    "nativeSourceCommit":  "0d069844858719a559b257ff8cff20524381ead6",
+    "previousDeployment":  "a0061d191341d0d4a1a4c7e1bf5f0f8e13b7d019",
     "sdk":  "10.0.100",
     "workload":  "10.0.100",
     "configuration":  "Release",
@@ -93,9 +93,10 @@
                     "Proven-fresh guest RAM",
                     "pagerprobe paging latency probe: OPFS pager worker, 16/64/256 KiB pages, clean and dirty faults",
                     "cold-storage paging probe: write, restart phone, read every page once from flash",
-                    "fix iOS OPFS InvalidStateError: await handle close and retry open"
+                    "fix iOS OPFS InvalidStateError: await handle close and retry open",
+                    "Game imports no longer rejected by padded storage estimates (PR 40); cold paging probe retained"
                 ],
     "incrementalCleanBase":  "44416f1318a2fb01e7de6082e3dc5f24f3691117",
-    "builtAt":  "2026-11-14T18:07:35.9810574Z",
+    "builtAt":  "2026-11-20T10:28:03.1022894Z",
     "browserAndHleJavaScriptChecksPassed":  362
 }
