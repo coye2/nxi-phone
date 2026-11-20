@@ -643,6 +643,11 @@ try {
   await jitRestore;
   await api.MarkRuntimeReady();
   startup.finish();
+  // Off-by-default: ?paging runs the demand-paging self-check in the core and shows its result, so the
+  // paging stack is exercised on device without touching the memory path. See INTEGRATION-PLAN.md.
+  if (new URLSearchParams(location.search).has('paging')) {
+    try { tell('paging self-check: running…'); tell(await api.PagingSelfCheck()); } catch (error) { tell('paging self-check failed: ' + error.message); }
+  }
   runAutotest({ api: globalThis.nxi.api, phase, startup });
   button.disabled = false;
   for (const id of ['choose-keys', 'choose-firmware', 'choose-firmware-folder', 'classic-mode']) document.getElementById(id).disabled = false;
