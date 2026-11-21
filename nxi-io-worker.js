@@ -5,6 +5,18 @@ let memory, mbox, i32, view;
 const handles = new Map(), files = new Map();
 let nextHandle = 1;
 const scratch = new Uint8Array(CAPACITY);
+async function openAccess(file) {
+  // WebKit may retain the previous access handle's lock briefly after close.
+  // Retry delays total at most 2.85 s; the native mailbox retains its 10 s
+  // deadline. Never retry permission, quota or missing-file errors.
+  for (let attempt = 0; ; attempt++) {
+    try { return await file.createSyncAccessHandle(); }
+    catch (error) {
+      if (error?.name !== 'InvalidStateError' || attempt === 19) throw error;
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+  }
+}
 function refresh() {
   if (!i32 || i32.buffer !== memory.buffer) { i32 = new Int32Array(memory.buffer); view = new DataView(memory.buffer); }
 }
@@ -30,7 +42,7 @@ async function open() {
   if (!entry) {
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('nxi-games');
     const file = await dir.getFileHandle(name);
-    entry = { access: await file.createSyncAccessHandle(), refs: 0, name };
+    entry = { access: await openAccess(file), refs: 0, name };
     created = true;
   }
   let size;
@@ -38,7 +50,7 @@ async function open() {
     size = entry.access.getSize();
     if (!Number.isSafeInteger(size) || size < 0) throw new Error('Invalid file size');
   } catch (error) {
-    if (created) entry.access.close();
+    if (created) await entry.access.close();
     throw error;
   }
   if (created) files.set(name, entry);
@@ -61,17 +73,17 @@ function read() {
   new Uint8Array(memory.buffer, dest, n).set(scratch.subarray(0, n));
   view.setBigInt64(mbox + RESULT, BigInt(n), true);
 }
-function close() {
+async function close() {
   const id = i32[(mbox + HANDLE) >>> 2], entry = handles.get(id);
   if (!entry) throw new Error('Unknown storage handle');
   handles.delete(id);
-  if (--entry.refs === 0) { try { entry.access.close(); } finally { files.delete(entry.name); } }
+  if (--entry.refs === 0) { try { await entry.access.close(); } finally { files.delete(entry.name); } }
 }
 async function processRequest() {
   refresh();
   try {
     const op = i32[(mbox + OP) >>> 2];
-    if (op === 1) await open(); else if (op === 2) read(); else if (op === 3) close();
+    if (op === 1) await open(); else if (op === 2) read(); else if (op === 3) await close();
     else throw new Error('Unknown storage operation');
     refresh(); i32[(mbox + STATUS) >>> 2] = 0;
   } catch (error) {
