@@ -14,6 +14,7 @@ import { exportDiagnostics, phase, noteAppReload, recordBoundary, drainBoundary,
 import { configureRuntimeDelivery } from './runtime-delivery.js';
 import { readCpuMailboxDiagnostics, MAX_CPU_MAILBOX_SAMPLES } from './cpu-mailbox-diagnostics.js';
 import { initialMemoryExperiment, installRuntimeMemoryCapture, cpuCachePolicy } from './runtime-memory.js';
+import { createStorageDiagnostics } from './storage-diagnostics.js';
 
 globalThis.nxiRecordBoundary = recordBoundary;
 
@@ -80,11 +81,13 @@ globalThis.nxiSpawnCpuWorker = mailbox => {
   };
   worker.postMessage({ memory: globalThis.nxiWasmMemory, mailbox, cachePolicy: selectedCpuCachePolicy });
 };
-let ioWorker, storageReady;
+let ioWorker, storageReady, storageDiagnostics;
+globalThis.nxiReadStorage = () => storageDiagnostics?.snapshot() ?? null;
 globalThis.nxiWorkerCounters = () => ({ cpuWorkersCreated: cpuWorkers.length, cpuWorkersActive: cpuWorkers.length,
   totalCpuWorkersCreated:cpuWorkersCreated, cpuWorkersRetired, storageWorkerCreated: ioWorker ? 1 : 0,
   cpuCachePolicy: selectedCpuCachePolicy ?? null, cpuCaches: [...cpuCacheObservations.values()] });
 globalThis.nxiStartIoWorker = mailbox => {
+  storageDiagnostics = createStorageDiagnostics();
   storageReady = new Promise((resolve, reject) => {
     const fail = message => {
       Atomics.store(new Int32Array(globalThis.nxiWasmMemory.buffer), mailbox >>> 2, 3);
@@ -98,7 +101,7 @@ globalThis.nxiStartIoWorker = mailbox => {
       if (data.type === 'ready') { clearTimeout(timer); resolve(); }
       if (data.type === 'error') { clearTimeout(timer); fail('Storage worker failed: ' + data.message); }
     };
-    ioWorker.postMessage({ memory: globalThis.nxiWasmMemory, mailbox });
+    ioWorker.postMessage({ memory: globalThis.nxiWasmMemory, mailbox, diagnostics: storageDiagnostics.buffer });
   });
   storageReady.catch(() => {});
 };
@@ -315,6 +318,8 @@ try {
       copyBoundary();
       observer.poll();
       const health = observer.health;
+      const storage = storageDiagnostics?.snapshot();
+      if (storage) phase(`storage: ${storage.stage} op ${storage.operation} requests ${storage.requests} completed ${storage.completed} reads ${storage.reads} bytes ${storage.bytesRead} handles ${storage.openHandles} retries ${storage.reopenRetries}`);
       let linearBytes = 0;
       try { linearBytes = globalThis.nxiWasmMemory?.buffer?.byteLength ?? 0; } catch { linearBytes = 0; }
       phase(formatPlaySample({

@@ -1,5 +1,5 @@
 // Staging replaces BUILD with a content-derived version. Never mix running builds.
-const BUILD = '8dacbc9a29472ac0';
+const BUILD = '3dbdb77eab2d331d';
 const PREFIX = 'nxi-browser-launcher-';
 const CACHE = PREFIX + BUILD;
 const scope = new URL('./', self.location.href);
@@ -79,6 +79,22 @@ self.addEventListener('install', event => event.waitUntil((async () => {
       return { url, size: expected.size, sha256: expected.sha256 };
     });
     const cache = await caches.open(CACHE);
+    // A small shell patch must not redownload the unchanged native runtime.
+    // Reuse only bytes that pass THIS build's size/hash checks; old caches stay
+    // untouched until normal activation, so a failed update preserves the app.
+    let previousCaches = [];
+    try { previousCaches = (await caches.keys()).filter(key => key.startsWith(PREFIX) && key !== CACHE).slice(-3).reverse(); }
+    catch { /* A cache-list failure can still fall back to the network. */ }
+    const reusableResponse = async asset => {
+      for (const name of previousCaches) {
+        try {
+          const previous = await caches.open(name);
+          const response = await previous.match(asset.url);
+          if (response) return await verifiedResponse(response, asset);
+        } catch { /* Missing, unreadable or mismatched old assets are not reused. */ }
+      }
+      return null;
+    };
     const download = async batch => {
       // Settle every write before cleanup after a failed download.
       const results = await Promise.allSettled(batch.map(async asset => {
@@ -87,7 +103,8 @@ self.addEventListener('install', event => event.waitUntil((async () => {
           if (cached) {
             try { await verifiedResponse(cached, asset); return; } catch { /* Retry an incomplete cache entry from the network. */ }
           }
-          await cache.put(asset.url, await verifiedResponse(await responseFor(asset.url), asset));
+          const reusable = await reusableResponse(asset);
+          await cache.put(asset.url, reusable ?? await verifiedResponse(await responseFor(asset.url), asset));
         } catch (error) { throw storageFailure(error, asset.url); }
       }));
       const failed = results.find(result => result.status === 'rejected');

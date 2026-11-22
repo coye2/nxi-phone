@@ -23,7 +23,7 @@ export async function capturePlayBuild() {
   } catch { /* Unknown is preferable to attributing a later deployment to this Play. */ }
   finally { controller.abort(); }
 }
-const PLAY_MILESTONES = ['boundary', 'completedBoundary', 'prerequisiteBegin', 'prerequisiteComplete', 'operation', 'loader', 'outcome'];
+const PLAY_MILESTONES = ['boundary', 'completedBoundary', 'prerequisiteBegin', 'prerequisiteComplete', 'operation', 'loader', 'storage', 'outcome'];
 function restoreMilestones(value) {
   return Object.fromEntries(PLAY_MILESTONES.flatMap(key => {
     const entry = value?.[key];
@@ -87,6 +87,7 @@ export function phase(name, distinct = false) {
     else if (/^prerequisite: .* complete$/.test(entry.step)) milestones.prerequisiteComplete = entry;
     else if (entry.step.startsWith('operation: ')) milestones.operation = entry;
     else if (entry.step.startsWith('loader: ')) milestones.loader = entry;
+    else if (entry.step.startsWith('storage: ')) milestones.storage = entry;
     else if (entry.step === 'Play started' || entry.step === 'Play failed before the guest started') milestones.outcome = entry;
     lastPlay.trail = trail.slice(-80);
     try { localStorage.setItem(LAST_PLAY, JSON.stringify(lastPlay)); } catch {}
@@ -303,7 +304,7 @@ export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000
     lastPlay: lastPlay ? { ...lastPlay, nativeLoader: summarizeLoaderJournal(lastPlay.nativeLoader) } : null,
     startup: startupSnapshot,
     session: null, core: null, execution: null, cpuMailboxes: null, gpuRing: null, gpuWorker: null, jitCache: null,
-    runtimeMemory: null, workerMemory: null,
+    runtimeMemory: null, workerMemory: null, storageWorker: null,
     errors: [], offlineBuild: null, availableOfflineBuild: null,
     qualification: { retailGameVerified: false, physicalPhoneVerified: false },
   };
@@ -324,6 +325,7 @@ export async function collectDiagnostics(api, startup = null, { timeoutMs = 3000
   try {report.jitCache = globalThis.nxiReadJitCache?.() ?? null;} catch {}
   try {report.runtimeMemory = globalThis.nxiReadRuntimeMemory?.() ?? null;} catch {}
   try {report.workerMemory = globalThis.nxiWorkerCounters?.() ?? null;} catch {}
+  try {report.storageWorker = globalThis.nxiReadStorage?.() ?? null;} catch {}
   if(results[3].status === 'fulfilled')report.gpuWorker=results[3].value;
   else report.errors.push('GPU worker diagnostics were unavailable.');
   await Promise.all(['precache.json', 'build-info.json'].map(async file => {

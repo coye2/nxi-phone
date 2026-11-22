@@ -2,6 +2,19 @@
 const STATE = 0, OP = 4, HANDLE = 8, LENGTH = 12, DEST = 16, STATUS = 20, OFFSET = 24, RESULT = 32, NAMELEN = 40, READY = 44, NAME = 48;
 const REQUEST = 1, DONE = 2, FAILED = 3, CAPACITY = 1024 * 1024;
 let memory, mbox, i32, view;
+let telemetry;
+const counts = { requests: 0, completed: 0, reads: 0, bytes: 0, retries: 0 };
+// Optional page-owned diagnostics; never use native mailbox padding or file names.
+function observe(stage, op = 0, error = 0) {
+  if (!telemetry) return;
+  Atomics.add(telemetry, 0, 1);
+  telemetry[1] = stage; telemetry[2] = op;
+  telemetry[3] = counts.requests; telemetry[4] = counts.completed;
+  telemetry[5] = counts.reads; telemetry[6] = counts.bytes >>> 0;
+  telemetry[7] = Math.floor(counts.bytes / 4294967296);
+  telemetry[8] = handles.size; telemetry[9] = counts.retries; telemetry[10] = error;
+  Atomics.add(telemetry, 0, 1);
+}
 const handles = new Map(), files = new Map();
 let nextHandle = 1;
 const scratch = new Uint8Array(CAPACITY);
@@ -13,6 +26,7 @@ async function openAccess(file) {
     try { return await file.createSyncAccessHandle(); }
     catch (error) {
       if (error?.name !== 'InvalidStateError' || attempt === 19) throw error;
+      counts.retries++; observe(1, 1);
       await new Promise(resolve => setTimeout(resolve, 150));
     }
   }
@@ -21,15 +35,19 @@ function refresh() {
   if (!i32 || i32.buffer !== memory.buffer) { i32 = new Int32Array(memory.buffer); view = new DataView(memory.buffer); }
 }
 async function waitForRequest() {
+  let waits = 0;
   for (;;) {
     refresh();
     const value = Atomics.load(i32, mbox >>> 2);
     if (value === REQUEST) return;
     if (value === FAILED) throw new Error('Storage channel failed');
-    // Blocking wait with a timeout: the core only flips the state (no notify), and WebKit
-    // (iOS Safari) doesn't reliably wake Atomics.waitAsync on its timeout, which left
-    // requests unanswered for 30 s. Nothing else runs on this worker between requests.
-    Atomics.wait(i32, mbox >>> 2, value, 5);
+    // Keep short waits during an active read burst. After 100 ms without work,
+    // yield a task and poll at 25 ms: the old infinite blocking loop never let
+    // the worker event loop run while idle and woke 200 times/second on the shelf.
+    // Do not use waitAsync: its timeout was unreliable on WebKit. Native code
+    // does not notify, so every idle wait must still have a bounded timeout.
+    if (waits++ < 20) Atomics.wait(i32, mbox >>> 2, value, 5);
+    else await new Promise(resolve => setTimeout(resolve, 25));
   }
 }
 async function open() {
@@ -72,6 +90,7 @@ function read() {
   refresh();
   new Uint8Array(memory.buffer, dest, n).set(scratch.subarray(0, n));
   view.setBigInt64(mbox + RESULT, BigInt(n), true);
+  counts.reads++; counts.bytes += n;
 }
 async function close() {
   const id = i32[(mbox + HANDLE) >>> 2], entry = handles.get(id);
@@ -81,16 +100,20 @@ async function close() {
 }
 async function processRequest() {
   refresh();
+  const op = i32[(mbox + OP) >>> 2];
+  counts.requests++; observe(op >= 1 && op <= 3 ? op : 4, op);
+  let failed = false;
   try {
-    const op = i32[(mbox + OP) >>> 2];
     if (op === 1) await open(); else if (op === 2) read(); else if (op === 3) await close();
     else throw new Error('Unknown storage operation');
     refresh(); i32[(mbox + STATUS) >>> 2] = 0;
   } catch (error) {
+    failed = true;
     console.warn('NXI storage request failed:', error.message);
     refresh(); i32[(mbox + STATUS) >>> 2] = 1;
     view.setBigInt64(mbox + RESULT, 0n, true);
   }
+  counts.completed++; observe(failed ? 4 : 0, op, failed ? 1 : 0);
   Atomics.store(i32, mbox >>> 2, DONE);
   Atomics.notify(i32, mbox >>> 2);
 }
@@ -98,6 +121,8 @@ async function serve() { for (;;) { await waitForRequest(); await processRequest
 self.onmessage = ({ data }) => {
   if (memory) return;
   memory = data.memory; mbox = data.mailbox >>> 0; refresh();
+  if (typeof SharedArrayBuffer !== 'undefined' && data.diagnostics instanceof SharedArrayBuffer && data.diagnostics.byteLength === 64)
+    telemetry = new Int32Array(data.diagnostics);
   if (mbox % 16 || mbox + 256 + CAPACITY > memory.buffer.byteLength) throw new Error('Invalid storage mailbox');
   Atomics.store(i32, (mbox + READY) >>> 2, 1);
   self.postMessage({ type: 'ready' });
