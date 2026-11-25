@@ -3,7 +3,9 @@ const STATE = 0, OP = 4, HANDLE = 8, LENGTH = 12, DEST = 16, STATUS = 20, OFFSET
 const REQUEST = 1, DONE = 2, FAILED = 3, CAPACITY = 1024 * 1024;
 let memory, mbox, i32, view;
 let telemetry;
-const counts = { requests: 0, completed: 0, reads: 0, bytes: 0, retries: 0 };
+const counts = { requests: 0, completed: 0, reads: 0, bytes: 0, retries: 0, yields: 0 };
+const YIELD_BYTES = 4 * 1024 * 1024;
+let yieldedBytes = 0;
 // Optional page-owned diagnostics; never use native mailbox padding or file names.
 function observe(stage, op = 0, error = 0) {
   if (!telemetry) return;
@@ -13,6 +15,7 @@ function observe(stage, op = 0, error = 0) {
   telemetry[5] = counts.reads; telemetry[6] = counts.bytes >>> 0;
   telemetry[7] = Math.floor(counts.bytes / 4294967296);
   telemetry[8] = handles.size; telemetry[9] = counts.retries; telemetry[10] = error;
+  telemetry[11] = counts.yields;
   Atomics.add(telemetry, 0, 1);
 }
 const handles = new Map(), files = new Map();
@@ -34,7 +37,18 @@ async function openAccess(file) {
 function refresh() {
   if (!i32 || i32.buffer !== memory.buffer) { i32 = new Int32Array(memory.buffer); view = new DataView(memory.buffer); }
 }
+async function yieldActiveBurst() {
+  // content.verify keeps this worker in back-to-back reads, so the idle timeout
+  // never runs. Yield one task per 4 MiB so the worker event loop can run between
+  // requests. The native 10 s deadline and 1 MiB read cap are unchanged.
+  if (counts.bytes - yieldedBytes < YIELD_BYTES) return;
+  yieldedBytes = counts.bytes;
+  counts.yields++;
+  observe(0, 0);
+  await new Promise(resolve => setTimeout(resolve, 0));
+}
 async function waitForRequest() {
+  await yieldActiveBurst();
   let waits = 0;
   for (;;) {
     refresh();

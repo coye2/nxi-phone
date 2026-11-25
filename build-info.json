@@ -99,14 +99,15 @@
     "Wait for game/firmware OPFS handle close and retry transient reopen locks (PR 41)",
     "Reuse verified cached runtime assets during shell-only updates (PR 42)",
     "Yield the storage worker event loop after idle without waitAsync (PR 43)",
-    "Retain bounded storage I/O checkpoints across Play interruptions (PR 43)"
+    "Retain bounded storage I/O checkpoints across Play interruptions (PR 43)",
+    "Yield the storage worker once per 4 MiB during content.verify and record the yield count (continues PR 43)"
   ],
   "incrementalCleanBase": "44416f1318a2fb01e7de6082e3dc5f24f3691117",
   "builtAt": "2026-11-20T11:39:31.5095706Z",
   "browserAndHleJavaScriptChecksPassed": 362,
   "frontendBaseSourceCommit": "e9125f6a047e981480a172ab710ca8a39079afc4",
   "frontendPatch": {
-    "sourceCommit": "14f3580e49a5b7d65c066784a1c577ef4f7829ab",
+    "sourceCommit": "10a82569314652cbf1078e8f6e2ee38ede24deed",
     "pullRequest": 43,
     "includesPullRequests": [
       41,
@@ -115,14 +116,13 @@
     ],
     "files": [
       "main.js",
-      "diagnostics.js",
       "storage-diagnostics.js",
-      "sw.js",
       "nxi-io-worker.js"
     ],
-    "nativeRuntimeReused": true
+    "nativeRuntimeReused": true,
+    "continuesPullRequest": 43
   },
-  "frontendPatchedAt": "2026-11-22T14:20:31.657979+00:00",
+  "frontendPatchedAt": "2026-11-25T11:10:00+00:00",
   "storageRepairValidation": {
     "storageStartupChecksPassed": 132,
     "qualificationHarnessUnitChecksPassed": 23,
@@ -133,6 +133,13 @@
   "storageIdleValidation": {
     "focusedNodeChecksPassed": 122,
     "oldWorkerIdleRegressionFailed": true,
+    "physicalIPhoneVerified": false,
+    "retailGameVerified": false
+  },
+  "storageBurstYieldValidation": {
+    "storageWorkerChecksPassed": 15,
+    "yieldBytes": 4194304,
+    "nativeRuntimeReused": true,
     "physicalIPhoneVerified": false,
     "retailGameVerified": false
   }
