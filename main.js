@@ -319,7 +319,7 @@ try {
       observer.poll();
       const health = observer.health;
       const storage = storageDiagnostics?.snapshot();
-      if (storage) phase(`storage: ${storage.stage} op ${storage.operation} requests ${storage.requests} completed ${storage.completed} reads ${storage.reads} bytes ${storage.bytesRead} handles ${storage.openHandles} retries ${storage.reopenRetries} yields ${storage.eventYields}`);
+      if (storage) phase(`storage: ${storage.stage} op ${storage.operation} requests ${storage.requests} completed ${storage.completed} reads ${storage.reads} bytes ${storage.bytesRead} handles ${storage.openHandles} retries ${storage.reopenRetries}`);
       let linearBytes = 0;
       try { linearBytes = globalThis.nxiWasmMemory?.buffer?.byteLength ?? 0; } catch { linearBytes = 0; }
       phase(formatPlaySample({

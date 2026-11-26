@@ -15,7 +15,7 @@ export function createStorageDiagnostics() {
         completed: copy[4] >>> 0, reads: copy[5] >>> 0,
         bytesRead: (copy[7] >>> 0) * 4294967296 + (copy[6] >>> 0),
         openHandles: copy[8] >>> 0, reopenRetries: copy[9] >>> 0,
-        lastRequestFailed: copy[10] !== 0, eventYields: copy[11] >>> 0 };
+        lastRequestFailed: copy[10] !== 0 };
     }
     return null;
   } };
